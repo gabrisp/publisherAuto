@@ -11,6 +11,8 @@ import {
   Zap,
   Music2,
   Eye,
+  Film,
+  Hash,
 } from "lucide-react";
 
 const links = [
@@ -20,6 +22,8 @@ const links = [
   { href: "/images", label: "Global Images", icon: ImageIcon },
   { href: "/generate", label: "Generate", icon: Zap },
   { href: "/generate/review", label: "Review & Upload", icon: Eye },
+  { href: "/carousels", label: "Carousels", icon: Film },
+  { href: "/hashtags", label: "Hashtags", icon: Hash },
   { href: "/tiktok", label: "TikTok", icon: Music2 },
 ];
 

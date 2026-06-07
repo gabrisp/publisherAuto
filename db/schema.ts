@@ -44,6 +44,9 @@ export const carousels = pgTable("carousels", {
   renderText: integer("render_text").notNull().default(1),
   jsonSource: text("json_source"),
   zipPath: text("zip_path"),
+  // TikTok draft info
+  sentToAccountId: text("sent_to_account_id"),
+  sentAt: bigint("sent_at", { mode: "number" }),
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
   updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
 });
@@ -61,6 +64,12 @@ export const carouselSlides = pgTable("carousel_slides", {
   texts: text("texts").notNull().default("[]"),
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
   updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
+});
+
+export const hashtags = pgTable("hashtags", {
+  id: text("id").primaryKey(),
+  tag: text("tag").notNull().unique(), // sin el símbolo #
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
 });
 
 export const settings = pgTable("settings", {
@@ -92,6 +101,8 @@ export type NewCarouselSlide = typeof carouselSlides.$inferInsert;
 export type TiktokAccount = typeof tiktokAccounts.$inferSelect;
 export type NewTiktokAccount = typeof tiktokAccounts.$inferInsert;
 export type Setting = typeof settings.$inferSelect;
+export type Hashtag = typeof hashtags.$inferSelect;
+export type NewHashtag = typeof hashtags.$inferInsert;
 
 export type TextElement = {
   id: string;

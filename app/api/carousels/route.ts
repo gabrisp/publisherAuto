@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { carousels, carouselSlides, apps, influencers, images } from "@/db/schema";
+import { carousels, carouselSlides, apps, influencers, images, tiktokAccounts } from "@/db/schema";
 import { eq, count } from "drizzle-orm";
 import { processBatchJson } from "@/lib/carousel-generator";
 
@@ -20,13 +20,17 @@ export async function GET(req: Request) {
         zipPath: carousels.zipPath,
         appId: carousels.appId,
         influencerId: carousels.influencerId,
+        sentAt: carousels.sentAt,
+        sentToAccountId: carousels.sentToAccountId,
         createdAt: carousels.createdAt,
         appName: apps.name,
         influencerName: influencers.name,
+        sentToAccountName: tiktokAccounts.name,
       })
       .from(carousels)
       .leftJoin(apps, eq(carousels.appId, apps.id))
       .leftJoin(influencers, eq(carousels.influencerId, influencers.id))
+      .leftJoin(tiktokAccounts, eq(carousels.sentToAccountId, tiktokAccounts.id))
       .orderBy(carousels.createdAt),
 
     db

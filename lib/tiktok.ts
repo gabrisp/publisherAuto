@@ -75,14 +75,18 @@ type UploadResult = {
 export async function uploadCarouselAsDraft(
   account: TiktokAccount,
   imageUrls: string[],
-  title: string
+  title: string,
+  description?: string   // hashtags string, e.g. "#fitness #gym #workout"
 ): Promise<UploadResult> {
   const fresh = await refreshTokenIfNeeded(account);
+
+  // Usar description (hashtags) si está disponible; si no, el nombre del carousel
+  const caption = description ? description.slice(0, 2200) : title.slice(0, 90);
 
   const endpoint = `${TIKTOK_API}/post/publish/content/init/`;
   const requestBody = {
     post_info: {
-      title: title.slice(0, 90),
+      title: caption,
     },
     source_info: {
       source: "PULL_FROM_URL",
