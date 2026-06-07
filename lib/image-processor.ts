@@ -1,10 +1,11 @@
 import sharp from "sharp";
 import type { TextElement } from "@/db/schema";
 
-const CANVAS_W = 1080;
-const CANVAS_H = 1920;
+// Dimensiones por defecto solo para el ID slide (fondo sintético)
+const DEFAULT_W = 1080;
+const DEFAULT_H = 1920;
 
-function textToSvg(el: TextElement): Buffer {
+function textToSvg(el: TextElement, canvasW: number, canvasH: number): Buffer {
   const anchor =
     el.align === "center" ? "middle" : el.align === "right" ? "end" : "start";
   const x =
@@ -30,7 +31,7 @@ function textToSvg(el: TextElement): Buffer {
     )
     .join("\n");
 
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${CANVAS_W}" height="${CANVAS_H}">
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${canvasW}" height="${canvasH}">
     ${textElements}
   </svg>`;
 
@@ -72,7 +73,9 @@ async function fetchToBuffer(url: string): Promise<Buffer> {
 }
 
 export async function generateIdSlide(shortId: string): Promise<Buffer> {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${CANVAS_W}" height="${CANVAS_H}">
+  const w = DEFAULT_W;
+  const h = DEFAULT_H;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
     <text x="540" y="1050"
       font-family="Arial, sans-serif"
       font-size="300"
@@ -88,8 +91,8 @@ export async function generateIdSlide(shortId: string): Promise<Buffer> {
 
   return sharp({
     create: {
-      width: CANVAS_W,
-      height: CANVAS_H,
+      width: w,
+      height: h,
       channels: 3,
       background: { r: 17, g: 17, b: 17 },
     },
@@ -102,24 +105,30 @@ export async function generateIdSlide(shortId: string): Promise<Buffer> {
 /**
  * Composita una imagen de fondo con textos y devuelve el buffer JPEG.
  * bgImagePath puede ser una ruta de disco O una URL https:// (Supabase Storage).
- * Ya NO escribe nada a disco — el caller decide qué hacer con el buffer.
+ * Las imágenes se mantienen a su tamaño original — no se hace resize.
  */
 export async function compositeSlide(
   bgImagePath: string | null,
   texts: TextElement[]
 ): Promise<Buffer> {
   let base: sharp.Sharp;
+  let imgW = DEFAULT_W;
+  let imgH = DEFAULT_H;
 
   if (bgImagePath) {
     const input = bgImagePath.startsWith("http")
       ? await fetchToBuffer(bgImagePath)
       : bgImagePath;
-    base = sharp(input).resize(CANVAS_W, CANVAS_H, { fit: "cover" });
+    // Leer dimensiones reales sin modificar la imagen
+    const meta = await sharp(input).metadata();
+    imgW = meta.width ?? DEFAULT_W;
+    imgH = meta.height ?? DEFAULT_H;
+    base = sharp(input); // sin resize
   } else {
     base = sharp({
       create: {
-        width: CANVAS_W,
-        height: CANVAS_H,
+        width: imgW,
+        height: imgH,
         channels: 3,
         background: { r: 20, g: 20, b: 20 },
       },
@@ -127,7 +136,7 @@ export async function compositeSlide(
   }
 
   const composites: sharp.OverlayOptions[] = texts.map((el) => ({
-    input: textToSvg(el),
+    input: textToSvg(el, imgW, imgH),
     top: 0,
     left: 0,
   }));
