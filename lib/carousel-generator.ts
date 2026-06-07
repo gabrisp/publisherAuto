@@ -9,8 +9,8 @@ import {
 import type { TextElement } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { newId, now, generateShortId, parseTags } from "@/lib/ids";
-import { compositeSlide } from "@/lib/image-processor";
-import { uploadFile } from "@/lib/supabase";
+import { compositeSlide, generateIdSlide } from "@/lib/image-processor";
+import { uploadFile, deleteFile, urlToStoragePath } from "@/lib/supabase";
 import JSZip from "jszip";
 
 type SlideJson = {
@@ -136,6 +136,21 @@ export async function generateCarouselZip(carouselId: string): Promise<void> {
     .where(eq(carousels.id, carouselId));
   if (!carousel) throw new Error("Carousel not found");
 
+  // 1. Borrar archivos antiguos de Supabase Storage (best-effort)
+  const oldSlides = await db
+    .select({ generatedImagePath: carouselSlides.generatedImagePath })
+    .from(carouselSlides)
+    .where(eq(carouselSlides.carouselId, carouselId));
+
+  const pathsToDelete: string[] = [];
+  if (carousel.zipPath) pathsToDelete.push(urlToStoragePath(carousel.zipPath));
+  pathsToDelete.push(`generated/idslide_${carouselId}.jpg`); // ID slide anterior
+  for (const s of oldSlides) {
+    if (s.generatedImagePath) pathsToDelete.push(urlToStoragePath(s.generatedImagePath));
+  }
+  await Promise.all(pathsToDelete.map((p) => deleteFile(p).catch(() => {})));
+
+  // 2. Generar nuevos slides
   const slides = await db
     .select()
     .from(carouselSlides)
@@ -167,6 +182,11 @@ export async function generateCarouselZip(carouselId: string): Promise<void> {
       .where(eq(carouselSlides.id, slide.id));
   }
 
+  // 3. Generar y subir ID slide (URL estable en Supabase, disponible para TikTok)
+  const idSlideBuffer = await generateIdSlide(carousel.shortId ?? carouselId.slice(0, 4));
+  await uploadFile(`generated/idslide_${carouselId}.jpg`, idSlideBuffer, "image/jpeg");
+
+  // 4. Construir y subir ZIP
   const zipFilename = `${carouselId}.zip`;
   const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
   const zipUrl = await uploadFile(`generated/${zipFilename}`, zipBuffer, "application/zip");

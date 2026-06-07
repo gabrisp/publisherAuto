@@ -18,6 +18,8 @@ export async function GET(req: Request) {
         status: carousels.status,
         renderText: carousels.renderText,
         zipPath: carousels.zipPath,
+        appId: carousels.appId,
+        influencerId: carousels.influencerId,
         createdAt: carousels.createdAt,
         appName: apps.name,
         influencerName: influencers.name,
@@ -33,13 +35,23 @@ export async function GET(req: Request) {
       .groupBy(carouselSlides.carouselId),
 
     listOnly
-      ? Promise.resolve([] as { carouselId: string; id: string; order: number; generatedImagePath: string | null; imagePath: string | null }[])
+      ? Promise.resolve([] as {
+          carouselId: string;
+          id: string;
+          order: number;
+          generatedImagePath: string | null;
+          imageId: string | null;
+          texts: string;
+          imagePath: string | null;
+        }[])
       : db
           .select({
             carouselId: carouselSlides.carouselId,
             id: carouselSlides.id,
             order: carouselSlides.order,
             generatedImagePath: carouselSlides.generatedImagePath,
+            imageId: carouselSlides.imageId,
+            texts: carouselSlides.texts,
             imagePath: images.path,
           })
           .from(carouselSlides)
@@ -54,10 +66,17 @@ export async function GET(req: Request) {
     slidesMap[s.carouselId].push(s);
   }
 
+  const supabaseUrl = process.env.SUPABASE_URL ?? "";
+
   return NextResponse.json(
     rows.map((r) => ({
       ...r,
       slideCount: countMap[r.id] ?? 0,
+      // URL estable en Supabase Storage del ID slide (generado junto con las slides)
+      idSlideImagePath:
+        r.status !== "draft" && supabaseUrl
+          ? `${supabaseUrl}/storage/v1/object/public/uploads/generated/idslide_${r.id}.jpg`
+          : null,
       ...(listOnly ? {} : { slides: slidesMap[r.id] ?? [] }),
     }))
   );
