@@ -48,6 +48,7 @@ type CarouselRow = {
   appName: string | null;
   influencerName: string | null;
   idSlideImagePath: string | null;
+  sentAt: number | null;
   slideCount: number;
   slides: Slide[];
 };
@@ -115,7 +116,8 @@ export default function ReviewPage() {
     ]);
     const cData: CarouselRow[] = await cRes.json();
     const aData: TikTokAccount[] = await aRes.json();
-    setCarousels(cData);
+    // Solo mostrar los que NO han sido enviados a TikTok
+    setCarousels(cData.filter((c) => c.sentAt === null));
     setAccounts(aData);
   }
 
@@ -415,10 +417,15 @@ export default function ReviewPage() {
       <div className="space-y-4">
         {carousels.length === 0 && (
           <p className="text-sm text-muted-foreground py-4">
-            No hay carousels.{" "}
+            No hay carousels pendientes.{" "}
             <Link href="/generate" className="underline">
-              Genera uno primero.
+              Genera uno nuevo
+            </Link>{" "}
+            o consulta los{" "}
+            <Link href="/carousels" className="underline">
+              ya enviados
             </Link>
+            .
           </p>
         )}
 
