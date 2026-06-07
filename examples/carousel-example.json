@@ -1,0 +1,108 @@
+{
+  "version": "1.0",
+  "carousels": [
+    {
+      "name": "Ivan x Creatinely – Back Day",
+      "app": "creatinely",
+      "influencer": "ivan",
+      "slides": [
+        {
+          "id": "slide-1",
+          "image": { "scope": "influencer", "tag": "biceps" },
+          "texts": [
+            {
+              "id": "t1",
+              "content": "Build those biceps!",
+              "x": 100,
+              "y": 200,
+              "fontSize": 48,
+              "color": "#FFFFFF",
+              "fontWeight": "bold",
+              "fontFamily": "Arial",
+              "align": "center",
+              "width": 800
+            },
+            {
+              "id": "t2",
+              "content": "Swipe →",
+              "x": 800,
+              "y": 1750,
+              "fontSize": 32,
+              "color": "#CCCCCC",
+              "fontWeight": "normal",
+              "fontFamily": "Arial",
+              "align": "right",
+              "width": 200
+            }
+          ]
+        },
+        {
+          "id": "slide-2",
+          "image": { "scope": "global", "tag": "gym" },
+          "texts": []
+        },
+        {
+          "id": "slide-3",
+          "image": { "scope": "app", "tag": "cta" },
+          "texts": [
+            {
+              "id": "t1",
+              "content": "Try Creatinely FREE",
+              "x": 540,
+              "y": 1600,
+              "fontSize": 60,
+              "color": "#FF6B00",
+              "fontWeight": "bold",
+              "fontFamily": "Arial",
+              "align": "center",
+              "width": 900
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Ivan x Creatinely – Leg Day",
+      "app": "creatinely",
+      "influencer": "ivan",
+      "slides": [
+        {
+          "id": "slide-1",
+          "image": { "scope": "influencer", "tag": "legs" },
+          "texts": [
+            {
+              "id": "t1",
+              "content": "Don't skip leg day.",
+              "x": 100,
+              "y": 200,
+              "fontSize": 52,
+              "color": "#FFFFFF",
+              "fontWeight": "bold",
+              "fontFamily": "Arial",
+              "align": "left",
+              "width": 850
+            }
+          ]
+        },
+        {
+          "id": "slide-2",
+          "image": { "scope": "app", "tag": "cta" },
+          "texts": [
+            {
+              "id": "t1",
+              "content": "Link in bio",
+              "x": 540,
+              "y": 1700,
+              "fontSize": 40,
+              "color": "#FFFFFF",
+              "fontWeight": "normal",
+              "fontFamily": "Arial",
+              "align": "center",
+              "width": 600
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

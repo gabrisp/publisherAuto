@@ -1,0 +1,34 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1780583866221,
+      "tag": "0000_opposite_shockwave",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1780756961098,
+      "tag": "0001_certain_edwin_jarvis",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1780761188934,
+      "tag": "0002_aspiring_dreaming_celestial",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1780761838303,
+      "tag": "0003_ordinary_white_tiger",
+      "breakpoints": true
+    }
+  ]
+}

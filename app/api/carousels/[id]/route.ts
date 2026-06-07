@@ -1,0 +1,70 @@
+import { NextResponse } from "next/server";
+import { db } from "@/db";
+import { carousels, carouselSlides, apps, influencers, images } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { deleteFile, urlToStoragePath } from "@/lib/supabase";
+
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const [carousel] = await db
+    .select({
+      id: carousels.id,
+      name: carousels.name,
+      shortId: carousels.shortId,
+      status: carousels.status,
+      renderText: carousels.renderText,
+      zipPath: carousels.zipPath,
+      createdAt: carousels.createdAt,
+      appName: apps.name,
+      influencerName: influencers.name,
+    })
+    .from(carousels)
+    .leftJoin(apps, eq(carousels.appId, apps.id))
+    .leftJoin(influencers, eq(carousels.influencerId, influencers.id))
+    .where(eq(carousels.id, id));
+
+  if (!carousel) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const slides = await db
+    .select({
+      id: carouselSlides.id,
+      order: carouselSlides.order,
+      generatedImagePath: carouselSlides.generatedImagePath,
+      texts: carouselSlides.texts,
+      imageId: carouselSlides.imageId,
+      imagePath: images.path,
+    })
+    .from(carouselSlides)
+    .leftJoin(images, eq(carouselSlides.imageId, images.id))
+    .where(eq(carouselSlides.carouselId, id))
+    .orderBy(carouselSlides.order);
+
+  return NextResponse.json({ ...carousel, slides });
+}
+
+export async function DELETE(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+
+  const [carousel] = await db.select({ zipPath: carousels.zipPath }).from(carousels).where(eq(carousels.id, id));
+  const slides = await db.select({ generatedImagePath: carouselSlides.generatedImagePath }).from(carouselSlides).where(eq(carouselSlides.carouselId, id));
+
+  await db.delete(carousels).where(eq(carousels.id, id));
+
+  // Eliminar archivos de Supabase Storage (best-effort)
+  const urlsToDelete: string[] = [];
+  if (carousel?.zipPath) urlsToDelete.push(carousel.zipPath);
+  for (const s of slides) {
+    if (s.generatedImagePath) urlsToDelete.push(s.generatedImagePath);
+  }
+  await Promise.all(
+    urlsToDelete.map((url) => deleteFile(urlToStoragePath(url)).catch(() => {}))
+  );
+
+  return NextResponse.json({ ok: true });
+}

@@ -1,65 +1,163 @@
-import Image from "next/image";
+import { Suspense } from "react";
+import { db } from "@/db";
+import { apps, influencers, images, carousels } from "@/db/schema";
+import { desc, count } from "drizzle-orm";
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Smartphone, Users, ImageIcon, Zap } from "lucide-react";
+import Link from "next/link";
+import { DashboardSearch } from "@/components/dashboard-search";
 
-export default function Home() {
+const STATUS_COLOR: Record<string, string> = {
+  draft: "secondary",
+  generated: "default",
+  edited: "outline",
+};
+
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
+  const { q } = await searchParams;
+
+  const [
+    [{ value: appCount }],
+    [{ value: influencerCount }],
+    [{ value: imageCount }],
+    allCarousels,
+  ] = await Promise.all([
+    db.select({ value: count() }).from(apps),
+    db.select({ value: count() }).from(influencers),
+    db.select({ value: count() }).from(images),
+    db.select().from(carousels).orderBy(desc(carousels.createdAt)).limit(200),
+  ]);
+
+  const filtered = q
+    ? allCarousels.filter(
+        (c) =>
+          c.shortId === q ||
+          c.name.toLowerCase().includes(q.toLowerCase())
+      )
+    : allCarousels;
+
+  const stats = [
+    { label: "Apps", value: appCount, icon: Smartphone, href: "/apps" },
+    { label: "Influencers", value: influencerCount, icon: Users, href: "/influencers" },
+    { label: "Images", value: imageCount, icon: ImageIcon, href: "/images" },
+    { label: "Carousels", value: allCarousels.length, icon: Zap, href: "/generate" },
+  ];
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold">Dashboard</h1>
+
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        {stats.map((s) => (
+          <Link key={s.label} href={s.href}>
+            <Card className="hover:bg-muted/50 transition-colors cursor-pointer">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  {s.label}
+                </CardTitle>
+                <s.icon className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold">{s.value}</p>
+              </CardContent>
+            </Card>
+          </Link>
+        ))}
+      </div>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <CardTitle>Carousel History</CardTitle>
+              <CardDescription>
+                {q
+                  ? `${filtered.length} resultado${filtered.length !== 1 ? "s" : ""} para "${q}"`
+                  : "All generated carousels — click any to edit"}
+              </CardDescription>
+            </div>
+            <Suspense>
+              <DashboardSearch defaultValue={q ?? ""} />
+            </Suspense>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {filtered.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4">
+              {q ? (
+                <>No hay carousels con ese ID o nombre. <button onClick={() => {}} className="underline">Limpiar búsqueda</button></>
+              ) : (
+                <>No carousels yet. <Link href="/generate" className="underline">Generate your first one.</Link></>
+              )}
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-muted-foreground">
+                    <th className="pb-2 pr-3 font-medium">ID</th>
+                    <th className="pb-2 pr-4 font-medium">Name</th>
+                    <th className="pb-2 pr-4 font-medium">Status</th>
+                    <th className="pb-2 pr-4 font-medium">Created</th>
+                    <th className="pb-2 font-medium">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((c) => (
+                    <tr key={c.id} className="border-b last:border-0">
+                      <td className="py-2 pr-3">
+                        {c.shortId ? (
+                          <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
+                            {c.shortId}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">—</span>
+                        )}
+                      </td>
+                      <td className="py-2 pr-4 font-medium">{c.name}</td>
+                      <td className="py-2 pr-4">
+                        <Badge variant={STATUS_COLOR[c.status] as "default" | "secondary" | "outline"}>
+                          {c.status}
+                        </Badge>
+                      </td>
+                      <td className="py-2 pr-4 text-muted-foreground">
+                        {new Date(c.createdAt * 1000).toLocaleDateString()}
+                      </td>
+                      <td className="py-2 flex gap-2">
+                        <Link
+                          href={`/generate/${c.id}`}
+                          className="text-xs underline text-muted-foreground hover:text-foreground"
+                        >
+                          Edit
+                        </Link>
+                        {c.zipPath && (
+                          <a
+                            href={`/api/carousels/${c.id}/download`}
+                            className="text-xs underline text-muted-foreground hover:text-foreground"
+                          >
+                            ZIP
+                          </a>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
