@@ -7,7 +7,6 @@ import { Film, Zap, ImageIcon, Music2, LayoutDashboard } from "lucide-react";
 const links = [
   { href: "/", label: "Inicio", icon: LayoutDashboard, exact: true },
   { href: "/carousels", label: "Carousels", icon: Film },
-  { href: "/generate", label: "Generar", icon: Zap },
   { href: "/images", label: "Imágenes", icon: ImageIcon },
   { href: "/tiktok", label: "TikTok", icon: Music2 },
 ];

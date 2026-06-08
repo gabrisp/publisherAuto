@@ -8,7 +8,6 @@ import {
   Smartphone,
   Users,
   ImageIcon,
-  Zap,
   Music2,
   Film,
   Hash,
@@ -18,11 +17,10 @@ import { Sun, Moon } from "lucide-react";
 
 const links = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/carousels", label: "Carousels", icon: Film },
+  { href: "/images", label: "Imágenes", icon: ImageIcon },
   { href: "/apps", label: "Apps", icon: Smartphone },
   { href: "/influencers", label: "Influencers", icon: Users },
-  { href: "/images", label: "Global Images", icon: ImageIcon },
-  { href: "/generate", label: "Generate", icon: Zap },
-  { href: "/carousels", label: "Carousels", icon: Film },
   { href: "/hashtags", label: "Hashtags", icon: Hash },
   { href: "/tiktok", label: "TikTok", icon: Music2 },
 ];

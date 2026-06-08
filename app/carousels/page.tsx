@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
-import { Search, X, LayoutGrid, List, Trash2, CheckSquare } from "lucide-react";
+import { Search, X, LayoutGrid, List, Trash2, CheckSquare, Plus, FileJson, ClipboardPaste } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 
@@ -33,15 +33,48 @@ type FilterVal = "all" | "pending" | "sent";
 type ViewMode = "grid" | "row";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
+const SWR_OPTS = { revalidateOnFocus: false, dedupingInterval: 10_000 };
 
 /* ── Page ────────────────────────────────────────────────────────────── */
 export default function CarouselsPage() {
   const router = useRouter();
-  const { data: all = [], mutate } = useSWR<Carousel[]>("/api/carousels", fetcher);
+  const { data: all = [], mutate } = useSWR<Carousel[]>("/api/carousels", fetcher, SWR_OPTS);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<FilterVal>("all");
   const [view, setView] = useState<ViewMode>("grid");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  /* ── Import modal ── */
+  const [showImport, setShowImport] = useState(false);
+  const [importTab, setImportTab] = useState<"file" | "paste">("file");
+  const [dragging, setDragging] = useState(false);
+  const [pasteText, setPasteText] = useState("");
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function importJson(text: string) {
+    setImporting(true);
+    try {
+      const res = await fetch("/api/carousels", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ json: text }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error ?? "Error"); return; }
+      toast.success(`${data.created.length} carousel${data.created.length !== 1 ? "s" : ""} creado${data.created.length !== 1 ? "s" : ""}`);
+      setShowImport(false);
+      setPasteText("");
+      mutate();
+    } catch { toast.error("JSON inválido"); }
+    finally { setImporting(false); }
+  }
+
+  async function handleFiles(files: FileList | File[]) {
+    const jsons = Array.from(files).filter((f) => f.name.endsWith(".json") || f.type === "application/json");
+    if (!jsons.length) { toast.error("Sin archivos JSON"); return; }
+    for (const f of jsons) await importJson(await f.text());
+  }
 
   /* ── Filtering ── */
   const counts = useMemo(() => ({
@@ -106,7 +139,15 @@ export default function CarouselsPage() {
   return (
     <div className="space-y-5 pb-24">
       {/* Header */}
-      <h1 className="text-2xl font-bold">Carousels</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Carousels</h1>
+        <button
+          onClick={() => setShowImport(true)}
+          className="h-9 w-9 flex items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm active:scale-95 transition-transform"
+        >
+          <Plus className="h-5 w-5" />
+        </button>
+      </div>
 
       {/* Toolbar */}
       <div className="flex items-center gap-3 flex-wrap">
@@ -192,6 +233,74 @@ export default function CarouselsPage() {
               onOpen={() => router.push(`/carousels/${c.id}`)}
             />
           ))}
+        </div>
+      )}
+
+      {/* ── Import modal ── */}
+      {showImport && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center p-0 sm:p-4"
+          onClick={() => setShowImport(false)}>
+          <div className="bg-background w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl border shadow-xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}>
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b">
+              <h2 className="font-semibold">Nuevo carousel</h2>
+              <button onClick={() => setShowImport(false)} className="text-muted-foreground hover:text-foreground">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex border-b">
+              {(["file", "paste"] as const).map((t) => (
+                <button key={t} onClick={() => setImportTab(t)}
+                  className={`flex-1 py-2.5 text-sm font-medium transition-colors flex items-center justify-center gap-1.5 ${
+                    importTab === t ? "border-b-2 border-primary text-foreground" : "text-muted-foreground"
+                  }`}>
+                  {t === "file" ? <><FileJson className="h-3.5 w-3.5" /> Archivo</> : <><ClipboardPaste className="h-3.5 w-3.5" /> Pegar</>}
+                </button>
+              ))}
+            </div>
+
+            <div className="p-4">
+              {importTab === "file" ? (
+                <>
+                  <div
+                    className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed py-10 cursor-pointer transition-colors ${
+                      dragging ? "border-primary bg-primary/5" : "border-muted-foreground/30 hover:bg-muted/40"
+                    }`}
+                    onClick={() => fileInputRef.current?.click()}
+                    onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+                    onDragLeave={() => setDragging(false)}
+                    onDrop={(e) => { e.preventDefault(); setDragging(false); handleFiles(e.dataTransfer.files); }}
+                  >
+                    <FileJson className="h-8 w-8 text-muted-foreground mb-2" />
+                    <p className="text-sm font-medium">Arrastra un .json o toca para seleccionar</p>
+                    <p className="text-xs text-muted-foreground mt-1">Un archivo puede tener varios carousels</p>
+                  </div>
+                  <input ref={fileInputRef} type="file" accept=".json,application/json" multiple className="hidden"
+                    onChange={(e) => e.target.files && handleFiles(e.target.files)} />
+                </>
+              ) : (
+                <div className="space-y-3">
+                  <textarea
+                    value={pasteText}
+                    onChange={(e) => setPasteText(e.target.value)}
+                    placeholder={'{ "version": "1.0", "carousels": [...] }'}
+                    rows={8}
+                    className="w-full rounded-xl border bg-muted/20 px-3 py-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+                  />
+                  <button
+                    onClick={() => importJson(pasteText)}
+                    disabled={!pasteText.trim() || importing}
+                    className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50 transition-opacity"
+                  >
+                    {importing ? "Importando…" : "Importar JSON"}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
