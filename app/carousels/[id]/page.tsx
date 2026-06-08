@@ -11,7 +11,6 @@ import {
 import {
   ChevronLeft,
   ChevronRight,
-  Download,
   Copy,
   Upload,
   ChevronDown,
@@ -213,102 +212,77 @@ export default function CarouselDetailPage() {
 
   return (
     <div className="space-y-5">
-      {/* ── Sticky header (main + sub) ── */}
-      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-sm border-b -mx-4 md:-mx-6 px-4 md:px-6 pt-2.5 pb-2 space-y-1.5">
-        {/* Row 1 — back · title · sent pill · prev/next · actions */}
-        <div className="flex items-center gap-2 min-w-0">
-          <Link href="/carousels">
-            <Button variant="ghost" size="sm" className="-ml-2 h-8 w-8 p-0 shrink-0">
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-          </Link>
+      {/* ── Sticky bar: nav + actions only ── */}
+      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-sm border-b -mx-4 md:-mx-6 px-4 md:px-6 py-2">
+        <div className="flex items-center gap-2">
+          {/* Prev / Next */}
+          <Button variant="ghost" size="sm" className="h-9 w-9 p-0" disabled={!prevId}
+            onClick={() => prevId && router.push(`/carousels/${prevId}`)}>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="sm" className="h-9 w-9 p-0" disabled={!nextId}
+            onClick={() => nextId && router.push(`/carousels/${nextId}`)}>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
 
-          <h1 className="flex-1 font-bold text-base leading-tight truncate min-w-0">
-            {carousel.name}
-          </h1>
+          <div className="flex-1" />
 
+          {isPending && (
+            <>
+              {accounts.length > 0 ? (
+                <DropdownMenu>
+                  {/* @ts-expect-error radix asChild */}
+                  <DropdownMenuTrigger asChild>
+                    <Button disabled={uploading} className="gap-2">
+                      <Upload className="h-4 w-4" />
+                      {uploading ? "Subiendo…" : "Subir a TikTok"}
+                      <ChevronDown className="h-3.5 w-3.5 opacity-70" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {accounts.map((acc) => (
+                      <DropdownMenuItem key={acc.id} onClick={() => handleUpload(acc.id)}>
+                        @{acc.name}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <Link href="/tiktok">
+                  <Button variant="outline">Conectar TikTok</Button>
+                </Link>
+              )}
+              <button onClick={handleDelete} disabled={deleting}
+                className="h-9 w-9 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </>
+          )}
+
+          <a href={`/api/carousels/${carousel.id}/download`}
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors px-1 py-1">
+            ZIP
+          </a>
+        </div>
+      </div>
+
+      {/* ── Title + meta (in scroll, above ID block) ── */}
+      <div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <h1 className="text-xl font-bold leading-tight">{carousel.name}</h1>
           {isSent && (
-            <span className="shrink-0 text-xs bg-green-500/15 text-green-600 dark:text-green-400 rounded-full px-2 py-0.5 font-semibold">
+            <span className="text-xs bg-green-500/15 text-green-600 dark:text-green-400 rounded-full px-2 py-0.5 font-semibold">
               Enviado
             </span>
           )}
-
-          {/* Prev / Next */}
-          <div className="flex items-center gap-0.5 shrink-0">
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0"
-              disabled={!prevId} onClick={() => prevId && router.push(`/carousels/${prevId}`)}>
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0"
-              disabled={!nextId} onClick={() => nextId && router.push(`/carousels/${nextId}`)}>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-
-          {/* Actions */}
-          <div className="flex items-center gap-1.5 shrink-0">
-            {isPending && (
-              <>
-                {accounts.length > 0 ? (
-                  <DropdownMenu>
-                    {/* @ts-expect-error radix asChild */}
-                    <DropdownMenuTrigger asChild>
-                      <Button size="sm" disabled={uploading} className="h-8 gap-1">
-                        <Upload className="h-3.5 w-3.5" />
-                        <span className="hidden sm:inline">
-                          {uploading ? "Subiendo…" : "TikTok"}
-                        </span>
-                        <ChevronDown className="h-3 w-3 opacity-70" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      {accounts.map((acc) => (
-                        <DropdownMenuItem key={acc.id} onClick={() => handleUpload(acc.id)}>
-                          @{acc.name}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                ) : (
-                  <Link href="/tiktok">
-                    <Button size="sm" variant="outline" className="h-8">Conectar TikTok</Button>
-                  </Link>
-                )}
-                <button onClick={handleDelete} disabled={deleting}
-                  className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </>
-            )}
-            <a href={`/api/carousels/${carousel.id}/download`}>
-              <Button size="sm" variant="outline" className="h-8 gap-1">
-                <Download className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">ZIP</span>
-              </Button>
-            </a>
-          </div>
         </div>
-
-        {/* Row 2 — breadcrumb · meta */}
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground border-t pt-1.5">
-          <span>Carousels</span>
-          <ChevronRight className="h-3 w-3 opacity-40 shrink-0" />
-          <span className="font-mono font-semibold text-foreground">{carousel.shortId ?? "—"}</span>
-          {[carousel.influencerName, carousel.appName].filter(Boolean).length > 0 && (
-            <span className="opacity-40 mx-0.5">·</span>
-          )}
-          <span className="truncate">
-            {[carousel.influencerName, carousel.appName].filter(Boolean).join(" × ")}
-          </span>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          {[carousel.influencerName, carousel.appName].filter(Boolean).join(" × ")}
           {carousel.sentToAccountName && (
-            <><span className="opacity-40">·</span>
-            <span className="font-medium text-foreground">@{carousel.sentToAccountName}</span></>
+            <span className="ml-2 font-medium text-foreground">· @{carousel.sentToAccountName}</span>
           )}
-          {carousel.sentAt && (
-            <><span className="opacity-40">·</span>
-            <span>{fmtDate(carousel.sentAt)}</span></>
-          )}
-        </div>
+          {carousel.sentAt && <span className="ml-1">· {fmtDate(carousel.sentAt)}</span>}
+        </p>
       </div>
 
       {/* ── ShortId + ID slide ── */}
