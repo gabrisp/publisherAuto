@@ -136,10 +136,10 @@ export default async function DashboardPage({
                       </td>
                       <td className="py-2 flex gap-2">
                         <Link
-                          href={`/generate/${c.id}`}
+                          href={`/carousels/${c.id}`}
                           className="text-xs underline text-muted-foreground hover:text-foreground"
                         >
-                          Edit
+                          Ver
                         </Link>
                         {c.zipPath && (
                           <a
