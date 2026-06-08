@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { NavSidebar } from "@/components/nav-sidebar";
+import { BottomNav } from "@/components/bottom-nav";
 import { Providers } from "@/components/providers";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -30,12 +31,14 @@ export default function RootLayout({
           <div className="flex h-screen overflow-hidden">
             <NavSidebar />
             <div className="flex flex-1 flex-col overflow-hidden">
-              <header className="flex h-12 shrink-0 items-center justify-end border-b px-4">
+              <header className="flex h-12 shrink-0 items-center justify-between border-b px-4">
+                <span className="text-sm font-semibold md:hidden">PlataformaAUTO</span>
                 <ThemeToggle />
               </header>
-              <main className="flex-1 overflow-y-auto p-6">{children}</main>
+              <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-20 md:pb-6">{children}</main>
             </div>
           </div>
+          <BottomNav />
         </Providers>
       </body>
     </html>

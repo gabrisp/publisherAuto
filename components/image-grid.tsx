@@ -202,7 +202,7 @@ export function ImageGrid({ images, onDeleted, onTagsSaved }: Props) {
 
       {/* ── GRID (default 3-col) ── */}
       {view === "grid" && (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           {images.map((img) => {
             const tags = getTags(img);
             return (
@@ -234,7 +234,7 @@ export function ImageGrid({ images, onDeleted, onTagsSaved }: Props) {
 
       {/* ── SMALL GRID (5-col) ── */}
       {view === "small" && (
-        <div className="grid grid-cols-5 gap-2">
+        <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
           {images.map((img) => {
             const tags = getTags(img);
             return (

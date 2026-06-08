@@ -1,25 +1,9 @@
 import sharp from "sharp";
 import type { TextElement } from "@/db/schema";
-import * as opentype from "opentype.js";
-import { readFileSync } from "fs";
-import path from "path";
 
 // Dimensiones por defecto solo para el ID slide (fondo sintético)
 const DEFAULT_W = 1080;
 const DEFAULT_H = 1920;
-
-// Carga la fuente una sola vez (Inter Bold) — nunca falla en servidor porque
-// está bundleada en lib/fonts/, no depende de fuentes del sistema
-let _font: opentype.Font | null = null;
-function getFont(): opentype.Font {
-  if (!_font) {
-    const buf = readFileSync(path.join(process.cwd(), "lib/fonts/Inter-Bold.ttf"));
-    // buf.buffer es el pool completo de Node — hay que slicear los bytes exactos
-    const arrayBuf = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
-    _font = opentype.parse(arrayBuf);
-  }
-  return _font;
-}
 
 function textToSvg(el: TextElement, canvasW: number, canvasH: number): Buffer {
   const anchor =
@@ -89,33 +73,26 @@ async function fetchToBuffer(url: string): Promise<Buffer> {
 }
 
 export async function generateIdSlide(shortId: string): Promise<Buffer> {
-  const CW = DEFAULT_W;   // 1080
-  const CH = DEFAULT_H;   // 1920
-  const fontSize = 380;
+  const CW = DEFAULT_W;
+  const CH = DEFAULT_H;
 
-  const font = getFont();
-
-  // Convierte el texto a paths SVG — sin texto, pura geometría, zero dependencia de fuentes
-  const pathObj = font.getPath(shortId, 0, 0, fontSize);
-  const bbox = pathObj.getBoundingBox();
-  const textW = bbox.x2 - bbox.x1;
-  const textH = bbox.y2 - bbox.y1;
-
-  // Centrar en el canvas
-  const tx = (CW - textW) / 2 - bbox.x1;
-  const ty = (CH - textH) / 2 - bbox.y1;
-
-  const centeredPath = font.getPath(shortId, tx, ty + textH, fontSize);
-  centeredPath.fill = "white";
-  const pathData = centeredPath.toSVG(1);
-
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${CW}" height="${CH}">${pathData}</svg>`;
+  // SVG puro con texto centrado — usa fuentes del sistema (disponibles en cualquier Linux/Netlify)
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${CW}" height="${CH}">
+    <text
+      x="540" y="1060"
+      font-family="DejaVu Sans Mono Bold, DejaVu Sans Mono, Liberation Mono, Courier New, monospace"
+      font-size="380"
+      font-weight="bold"
+      fill="white"
+      text-anchor="middle"
+    >${shortId}</text>
+  </svg>`;
 
   return sharp({
     create: { width: CW, height: CH, channels: 3, background: { r: 0, g: 0, b: 0 } },
   })
     .composite([{ input: Buffer.from(svg), top: 0, left: 0 }])
-    .jpeg({ quality: 98 })
+    .jpeg({ quality: 90 })
     .toBuffer();
 }
 

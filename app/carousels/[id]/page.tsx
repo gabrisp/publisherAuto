@@ -181,7 +181,7 @@ export default function CarouselDetailPage() {
   return (
     <div className="space-y-6">
       {/* ── Header ── */}
-      <div className="flex items-center gap-3 flex-wrap">
+      <div className="flex items-center gap-2 flex-wrap">
         <Link href="/carousels">
           <Button variant="ghost" size="sm" className="gap-1">
             <ChevronLeft className="h-4 w-4" />
@@ -293,10 +293,10 @@ export default function CarouselDetailPage() {
         </div>
       </div>
 
-      {/* ── Contenido: 2 columnas ── */}
-      <div className="grid grid-cols-5 gap-6">
-        {/* Izquierda: slides */}
-        <div className="col-span-2 space-y-3">
+      {/* ── Contenido: 2 columnas en desktop, 1 en móvil ── */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+        {/* Slides */}
+        <div className="md:col-span-2 space-y-3">
           <h2 className="text-sm font-semibold">Slides · {carousel.slides.length}</h2>
           <div className="grid grid-cols-2 gap-2">
             {carousel.slides.map((slide) => {
@@ -330,8 +330,8 @@ export default function CarouselDetailPage() {
           </div>
         </div>
 
-        {/* Derecha: textos */}
-        <div className="col-span-3 space-y-3">
+        {/* Textos */}
+        <div className="md:col-span-3 space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold">Textos</h2>
             <Button size="sm" variant="outline" className="h-7 text-xs" onClick={copyAllTexts}>

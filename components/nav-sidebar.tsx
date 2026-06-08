@@ -29,7 +29,7 @@ export function NavSidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="flex h-screen w-56 flex-col border-r bg-background">
+    <aside className="hidden md:flex h-screen w-56 flex-col border-r bg-background">
       <div className="border-b px-4 py-4">
         <span className="text-lg font-bold tracking-tight">PlataformaAUTO</span>
       </div>

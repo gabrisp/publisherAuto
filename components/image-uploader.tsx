@@ -145,7 +145,7 @@ export function ImageUploader({ scope, appId, influencerId, onUploaded }: Props)
       {/* Staged grid — same layout as ImageGrid */}
       {staged.length > 0 && (
         <div className="space-y-3">
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {staged.map((item) => (
               <div
                 key={item.id}
