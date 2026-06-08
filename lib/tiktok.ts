@@ -88,6 +88,7 @@ export async function uploadCarouselAsDraft(
   const requestBody = {
     post_info: {
       title: caption,
+      privacy_level: "PUBLIC_TO_EVERYONE",
       auto_add_music: true,
     },
     source_info: {
