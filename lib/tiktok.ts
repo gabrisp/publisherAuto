@@ -3,7 +3,6 @@ import { db } from "@/db";
 import { tiktokAccounts, settings } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { now } from "@/lib/ids";
-import { readFile } from "fs/promises";
 
 const TIKTOK_API = "https://open.tiktokapis.com/v2";
 

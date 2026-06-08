@@ -44,24 +44,30 @@ export async function POST(
 
   const imageUrls: string[] = [];
 
-  // 1. ID slide como primera imagen (URL estable en Supabase)
-  const idSlidePath = `generated/idslide_${id}.jpg`;
-  const idSlideBuffer = await generateIdSlide(carousel.shortId!);
-  await uploadFile(idSlidePath, idSlideBuffer, "image/jpeg");
-  imageUrls.push(`${process.env.SUPABASE_URL}/storage/v1/object/public/uploads/${idSlidePath}`);
-
-  // 2. Imágenes originales directamente (sin ningún procesado)
-  for (const slide of slides) {
-    if (slide.imagePath) imageUrls.push(slide.imagePath);
-  }
-
-  // 3. Hashtags como description
-  const hashtagRows = await db.select().from(hashtags).orderBy(hashtags.createdAt);
-  const description = hashtagRows.length > 0
-    ? hashtagRows.map((h) => `#${h.tag}`).join(" ")
-    : undefined;
-
   try {
+    // 1. ID slide como primera imagen (URL estable en Supabase)
+    const idSlidePath = `generated/idslide_${id}.jpg`;
+    const idSlideBuffer = await generateIdSlide(carousel.shortId!);
+    await uploadFile(idSlidePath, idSlideBuffer, "image/jpeg");
+    imageUrls.push(`${process.env.SUPABASE_URL}/storage/v1/object/public/uploads/${idSlidePath}`);
+
+    // 2. Imágenes originales directamente (sin ningún procesado)
+    for (const slide of slides) {
+      if (slide.imagePath) imageUrls.push(slide.imagePath);
+    }
+
+    // 3. Hashtags como description (tabla puede no existir → ignorar)
+    let description: string | undefined;
+    try {
+      const hashtagRows = await db.select().from(hashtags).orderBy(hashtags.createdAt);
+      if (hashtagRows.length > 0) {
+        description = hashtagRows.map((h) => `#${h.tag}`).join(" ");
+      }
+    } catch {
+      // tabla hashtags no existe o query falla — continuar sin description
+    }
+
+    // 4. Subir a TikTok
     const { publishId, debug } = await uploadCarouselAsDraft(
       account,
       imageUrls,
@@ -79,7 +85,7 @@ export async function POST(
   } catch (e) {
     const err = e as any;
     return NextResponse.json(
-      { error: err.message, imageUrls, debug: err.debug ?? null },
+      { error: err.message ?? String(err), imageUrls, debug: err.debug ?? null },
       { status: 500 }
     );
   }
