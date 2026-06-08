@@ -467,15 +467,51 @@ export default function CarouselDetailPage() {
             className="bg-background rounded-2xl border shadow-xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="font-semibold">Seleccionar imagen</h3>
-              <button
-                onClick={() => setPickerSlideId(null)}
-                className="text-muted-foreground hover:text-foreground"
-              >
-                <X className="h-4 w-4" />
-              </button>
+            {/* Header + tag chips — fijos, no scrollean */}
+            <div className="border-b">
+              <div className="flex items-center justify-between px-4 py-3">
+                <h3 className="font-semibold">Seleccionar imagen</h3>
+                <button
+                  onClick={() => setPickerSlideId(null)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              {pickerAvailTags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 px-4 pb-3">
+                  {pickerAvailTags.map((tag) => (
+                    <button
+                      key={tag}
+                      onClick={() =>
+                        setPickerTagFilter((prev) =>
+                          prev.includes(tag)
+                            ? prev.filter((t) => t !== tag)
+                            : [...prev, tag]
+                        )
+                      }
+                      className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                        pickerTagFilter.includes(tag)
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-muted text-muted-foreground border-transparent hover:border-muted-foreground/30"
+                      }`}
+                    >
+                      #{tag}
+                    </button>
+                  ))}
+                  {pickerTagFilter.length > 0 && (
+                    <button
+                      onClick={() => setPickerTagFilter([])}
+                      className="px-2 py-1 rounded-full text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                    >
+                      <X className="h-2.5 w-2.5" /> Limpiar
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
+
+            {/* Grid — scrollable */}
             <div className="overflow-y-auto p-4">
               {pickerLoading ? (
                 <div className="text-sm text-muted-foreground text-center py-8">
@@ -483,39 +519,6 @@ export default function CarouselDetailPage() {
                 </div>
               ) : (
                 <>
-                  {/* Tag filter chips */}
-                  {pickerAvailTags.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mb-3">
-                      {pickerAvailTags.map((tag) => (
-                        <button
-                          key={tag}
-                          onClick={() =>
-                            setPickerTagFilter((prev) =>
-                              prev.includes(tag)
-                                ? prev.filter((t) => t !== tag)
-                                : [...prev, tag]
-                            )
-                          }
-                          className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
-                            pickerTagFilter.includes(tag)
-                              ? "bg-primary text-primary-foreground border-primary"
-                              : "bg-muted text-muted-foreground border-transparent hover:border-muted-foreground/30"
-                          }`}
-                        >
-                          #{tag}
-                        </button>
-                      ))}
-                      {pickerTagFilter.length > 0 && (
-                        <button
-                          onClick={() => setPickerTagFilter([])}
-                          className="px-2 py-1 rounded-full text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
-                        >
-                          <X className="h-2.5 w-2.5" /> Limpiar
-                        </button>
-                      )}
-                    </div>
-                  )}
-
                   <div className="grid grid-cols-4 gap-2">
                     {displayPickerImages.map((img) => (
                       <button
