@@ -303,13 +303,16 @@ function CarouselGridCard({
     <div
       role="button"
       tabIndex={0}
-      className={`relative flex flex-col rounded-2xl border bg-card overflow-hidden transition-all cursor-pointer hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
+      className={`group relative flex flex-col rounded-2xl border bg-card overflow-hidden transition-all cursor-pointer hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
         ${selected ? "border-primary ring-1 ring-primary" : "hover:border-foreground/20"}`}
       onClick={onOpen}
       onKeyDown={(e) => e.key === "Enter" && onOpen()}
     >
-      {/* Checkbox — top-left */}
-      <div className="absolute top-2 left-2 z-10" onClick={onToggleSelect}>
+      {/* Checkbox — aparece solo al hover o cuando está seleccionado */}
+      <div
+        className={`absolute top-2 left-2 z-10 transition-opacity ${selected ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+        onClick={onToggleSelect}
+      >
         <Checkbox checked={selected} onClick={onToggleSelect} />
       </div>
 
