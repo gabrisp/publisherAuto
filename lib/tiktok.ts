@@ -87,7 +87,7 @@ export async function uploadCarouselAsDraft(
   const endpoint = `${TIKTOK_API}/post/publish/content/init/`;
   const requestBody = {
     "post_info": {
-        "description": description,
+        "description": description, //post caption (title + hashtags)
     },
     source_info: {
       source: "PULL_FROM_URL",
