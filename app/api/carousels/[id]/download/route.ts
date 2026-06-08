@@ -2,16 +2,23 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { carousels } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { generateCarouselZip } from "@/lib/carousel-generator";
 
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const [carousel] = await db.select().from(carousels).where(eq(carousels.id, id));
+  let [carousel] = await db.select().from(carousels).where(eq(carousels.id, id));
+  if (!carousel) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  if (!carousel?.zipPath) {
-    return NextResponse.json({ error: "ZIP not generated yet" }, { status: 404 });
+  // Generar ZIP on-demand si no existe todavía
+  if (!carousel.zipPath) {
+    await generateCarouselZip(id);
+    [carousel] = await db.select().from(carousels).where(eq(carousels.id, id));
+    if (!carousel?.zipPath) {
+      return NextResponse.json({ error: "ZIP generation failed" }, { status: 500 });
+    }
   }
 
   const res = await fetch(carousel.zipPath);

@@ -12,7 +12,6 @@ import {
 import {
   Upload,
   Download,
-  Zap,
   Trash2,
   LayoutList,
   Copy,
@@ -99,8 +98,6 @@ export default function CarouselsPage() {
 
   // Pendientes: estado de acciones
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [generating, setGenerating] = useState<string | null>(null);
-  const [bulkGenerating, setBulkGenerating] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null);
   const [debugLog, setDebugLog] = useState<DebugEntry[]>([]);
 
@@ -155,30 +152,6 @@ export default function CarouselsPage() {
   }
 
   /* acciones carousel */
-  async function handleGenerate(id: string) {
-    setGenerating(id);
-    try {
-      const res = await fetch(`/api/carousels/${id}/generate`, { method: "POST" });
-      if (!res.ok) throw new Error();
-      toast.success("Generado");
-      load();
-    } catch { toast.error("Error al generar"); }
-    finally { setGenerating(null); }
-  }
-
-  async function bulkGenerate() {
-    if (!selected.size) return;
-    setBulkGenerating(true);
-    let ok = 0;
-    for (const id of Array.from(selected)) {
-      const res = await fetch(`/api/carousels/${id}/generate`, { method: "POST" }).catch(() => null);
-      if (res?.ok) ok++;
-    }
-    setBulkGenerating(false);
-    toast.success(`${ok} generado${ok !== 1 ? "s" : ""}`);
-    load();
-  }
-
   async function handleDelete(id: string) {
     await fetch(`/api/carousels/${id}`, { method: "DELETE" });
     setSelected((prev) => { const n = new Set(prev); n.delete(id); return n; });
@@ -226,7 +199,8 @@ export default function CarouselsPage() {
     if (ok > 0) {
       toast.success(`${ok} subido${ok !== 1 ? "s" : ""} como draft`);
       setSelected(new Set());
-      load();
+      await load();
+      setTab("sent");
     }
   }
 
@@ -318,17 +292,11 @@ export default function CarouselsPage() {
             {selected.size > 0 ? `${selected.size} seleccionado${selected.size !== 1 ? "s" : ""}` : "Seleccionar todo"}
           </span>
           {selected.size > 0 && (
-            <>
-              <Button size="sm" variant="outline" onClick={bulkGenerate} disabled={bulkGenerating} className="h-7 text-xs">
-                <Zap className="h-3 w-3 mr-1" />
-                {bulkGenerating ? "Generando…" : `Generar ${selected.size}`}
-              </Button>
-              <Button size="sm" variant="outline" onClick={bulkDiscard}
-                className="h-7 text-xs text-destructive hover:text-destructive border-destructive/40 hover:border-destructive">
-                <Trash2 className="h-3 w-3 mr-1" />
-                Descartar {selected.size}
-              </Button>
-            </>
+            <Button size="sm" variant="outline" onClick={bulkDiscard}
+              className="h-7 text-xs text-destructive hover:text-destructive border-destructive/40 hover:border-destructive">
+              <Trash2 className="h-3 w-3 mr-1" />
+              Descartar {selected.size}
+            </Button>
           )}
         </div>
       )}
@@ -389,14 +357,9 @@ export default function CarouselsPage() {
                       onClick={() => toggleContent(c.id)}>
                       <LayoutList className="h-3.5 w-3.5 mr-1" /> Contenido
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => handleGenerate(c.id)} disabled={generating === c.id}>
-                      <Zap className="h-3.5 w-3.5 mr-1" />{generating === c.id ? "…" : "Generar"}
-                    </Button>
-                    {c.zipPath && (
-                      <a href={`/api/carousels/${c.id}/download`}>
-                        <Button size="sm" variant="ghost"><Download className="h-3.5 w-3.5 mr-1" />ZIP</Button>
-                      </a>
-                    )}
+                    <a href={`/api/carousels/${c.id}/download`}>
+                      <Button size="sm" variant="ghost"><Download className="h-3.5 w-3.5 mr-1" />ZIP</Button>
+                    </a>
                     <button onClick={() => handleDelete(c.id)}
                       className="rounded p-1.5 text-muted-foreground hover:text-destructive transition-colors">
                       <Trash2 className="h-3.5 w-3.5" />
@@ -405,7 +368,7 @@ export default function CarouselsPage() {
                 )}
 
                 {/* Descarga ZIP (tab sent) — z-10 para estar encima del overlay */}
-                {tab === "sent" && c.zipPath && (
+                {tab === "sent" && (
                   <a href={`/api/carousels/${c.id}/download`} className="relative z-10 ml-auto"
                     onClick={(e) => e.stopPropagation()}>
                     <Button size="sm" variant="ghost"><Download className="h-3.5 w-3.5" /></Button>
