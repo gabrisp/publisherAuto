@@ -20,17 +20,26 @@ export function generateShortId() {
 /**
  * Parse the `tag` column value into an array of tags.
  * Supports:
- *   - JSON arrays:          '["biceps","arm"]'  → ["biceps", "arm"]
- *   - underscore-separated: "front-day_gym"     → ["front-day", "gym"]
- *   - plain single string:  "biceps"            → ["biceps"]
+ *   - JSON arrays:          '["biceps","arm"]'        → ["biceps", "arm"]
+ *   - underscore-separated: "girl-to-men_break-up_2" → ["girl-to-men", "break-up"]
+ *   - plain single string:  "biceps"                 → ["biceps"]
+ *
+ * Pure-numeric segments (e.g. trailing counters like "_2") are ignored.
  */
 export function parseTags(raw: string): string[] {
   if (!raw) return [];
   if (raw.startsWith("[")) {
-    try { return (JSON.parse(raw) as string[]).map((t) => t.trim().toLowerCase()).filter(Boolean); } catch {}
+    try {
+      return (JSON.parse(raw) as string[])
+        .map((t) => t.trim().toLowerCase())
+        .filter((t) => t.length > 0 && !/^\d+$/.test(t));
+    } catch {}
   }
-  // underscore separates multiple tags; hyphens are part of the tag name
-  return raw.split("_").map((t) => t.trim().toLowerCase()).filter(Boolean);
+  // underscore separates tags; hyphens are part of the tag name; pure numbers are counters
+  return raw
+    .split("_")
+    .map((t) => t.trim().toLowerCase())
+    .filter((t) => t.length > 0 && !/^\d+$/.test(t));
 }
 
 /** Serialize an array of tags for storage in the `tag` column. */

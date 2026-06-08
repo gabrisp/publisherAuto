@@ -43,9 +43,12 @@ export async function POST(req: Request) {
     );
   }
 
-  // Expand underscore-separated tags: "front-day_gym" → ["front-day", "gym"]
+  // Expand underscore-separated tags; strip pure-numeric counters
+  // "girl-to-men_break-up_2" → ["girl-to-men", "break-up"]
   const expandedTags = tagValues.flatMap((t) =>
-    t.split("_").map((s) => s.trim().toLowerCase()).filter(Boolean)
+    t.split("_")
+      .map((s) => s.trim().toLowerCase())
+      .filter((s) => s.length > 0 && !/^\d+$/.test(s))
   );
   const tag = serializeTags(expandedTags);
   const ext = file.name.split(".").pop() ?? "jpg";
