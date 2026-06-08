@@ -1,116 +1,52 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Upload,
-  Download,
-  Trash2,
-  LayoutList,
-  Copy,
-  X,
-  ImageIcon,
-} from "lucide-react";
+import { Upload, Trash2, Search, X, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 
-/* ─── tipos ─────────────────────────────────────────────────────────────── */
-
-type TextEl = { id: string; content: string };
-
+/* ── Types ──────────────────────────────────────────────────────────── */
 type Slide = {
   id: string;
   order: number;
   generatedImagePath: string | null;
   imagePath: string | null;
-  imageId: string | null;
-  texts: string;
 };
 
-type CarouselRow = {
+type Carousel = {
   id: string;
   name: string;
   shortId: string | null;
   status: string;
   zipPath: string | null;
-  appId: string | null;
-  influencerId: string | null;
   appName: string | null;
   influencerName: string | null;
-  idSlideImagePath: string | null;
   sentAt: number | null;
-  sentToAccountId: string | null;
   sentToAccountName: string | null;
   slideCount: number;
   slides: Slide[];
 };
 
-type PickerImage = {
-  id: string;
-  path: string;
-  tag: string;
-  filename: string;
-  scope: string;
-};
-
 type TikTokAccount = { id: string; name: string };
+type FilterVal = "all" | "pending" | "sent";
 
-type DebugEntry = {
-  carouselName: string;
-  ok: boolean;
-  imageUrls?: string[];
-  debug: object | null;
-  error?: string;
-};
-
-/* ─── helpers ────────────────────────────────────────────────────────────── */
-
-const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline"> = {
-  draft: "secondary",
-  generated: "default",
-  edited: "outline",
-};
-
-function parseTexts(json: string): TextEl[] {
-  try { return JSON.parse(json); } catch { return []; }
-}
-
-function fmtDate(ts: number) {
-  return new Date(ts * 1000).toLocaleString("es-ES", {
-    day: "2-digit", month: "short", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
-  });
-}
-
-/* ─── página ─────────────────────────────────────────────────────────────── */
-
+/* ── Page ────────────────────────────────────────────────────────────── */
 export default function CarouselsPage() {
   const router = useRouter();
-  const [all, setAll] = useState<CarouselRow[]>([]);
+  const [all, setAll] = useState<Carousel[]>([]);
   const [accounts, setAccounts] = useState<TikTokAccount[]>([]);
-  const [tab, setTab] = useState<"pending" | "sent">("sent");
-
-  // Pendientes: estado de acciones
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<FilterVal>("all");
   const [uploading, setUploading] = useState<string | null>(null);
-  const [debugLog, setDebugLog] = useState<DebugEntry[]>([]);
-
-  // Panel de contenido
-  const [contentOpen, setContentOpen] = useState<Set<string>>(new Set());
-
-  // Selector de imagen
-  const [pickerState, setPickerState] = useState<{ carouselId: string; slideId: string } | null>(null);
-  const [pickerImages, setPickerImages] = useState<PickerImage[]>([]);
-  const [pickerLoading, setPickerLoading] = useState(false);
-  const [changingImage, setChangingImage] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   async function load() {
     const [cRes, aRes] = await Promise.all([
@@ -123,455 +59,260 @@ export default function CarouselsPage() {
 
   useEffect(() => { load(); }, []);
 
-  const pending = all.filter((c) => c.sentAt === null);
-  const sent = all.filter((c) => c.sentAt !== null);
-  const rows = tab === "pending" ? pending : sent;
-
-  /* selección */
-  function toggleSelect(id: string) {
-    setSelected((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
-  }
-  function toggleAll() {
-    setSelected((prev) => prev.size === pending.length ? new Set() : new Set(pending.map((c) => c.id)));
-  }
-
-  /* contenido */
-  function toggleContent(id: string) {
-    setContentOpen((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
-  }
-
-  /* textos */
-  function copySlideText(slide: Slide) {
-    const content = parseTexts(slide.texts).map((t) => t.content).join("\n");
-    if (!content.trim()) { toast("Sin texto"); return; }
-    navigator.clipboard.writeText(content);
-    toast.success("Copiado");
-  }
-  function copyAllTexts(slides: Slide[]) {
-    const parts = slides.map((s, i) => `SLIDE ${i + 1}\n${parseTexts(s.texts).map((t) => t.content).join("\n") || "(sin texto)"}`);
-    navigator.clipboard.writeText(parts.join("\n\n"));
-    toast.success("Todos los textos copiados");
-  }
-
-  /* acciones carousel */
-  async function handleDelete(id: string) {
-    await fetch(`/api/carousels/${id}`, { method: "DELETE" });
-    setSelected((prev) => { const n = new Set(prev); n.delete(id); return n; });
-    load();
-  }
-
-  async function bulkDiscard() {
-    if (!selected.size) return;
-    if (!confirm(`¿Eliminar ${selected.size} carousel${selected.size !== 1 ? "s" : ""}?`)) return;
-    await Promise.all(Array.from(selected).map((id) => fetch(`/api/carousels/${id}`, { method: "DELETE" })));
-    toast.success(`${selected.size} eliminado${selected.size !== 1 ? "s" : ""}`);
-    setSelected(new Set());
-    load();
-  }
-
-  async function handleUpload(accountId: string) {
-    if (!selected.size) { toast.error("Selecciona al menos uno"); return; }
-    const ids = Array.from(selected);
-    const newLogs: DebugEntry[] = [];
-    let ok = 0;
-    for (const id of ids) {
-      setUploading(id);
-      const name = all.find((c) => c.id === id)?.name ?? id;
-      try {
-        const res = await fetch(`/api/carousels/${id}/tiktok`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ accountId }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          toast.error(`Error: ${data.error}`);
-          newLogs.push({ carouselName: name, ok: false, imageUrls: data.imageUrls, debug: data.debug, error: data.error });
-        } else {
-          ok++;
-          newLogs.push({ carouselName: name, ok: true, imageUrls: data.imageUrls, debug: data.debug });
-        }
-      } catch (e) {
-        toast.error("Error de conexión");
-        newLogs.push({ carouselName: name, ok: false, debug: null, error: String(e) });
+  async function handleUpload(carouselId: string, accountId: string) {
+    setUploading(carouselId);
+    try {
+      const res = await fetch(`/api/carousels/${carouselId}/tiktok`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accountId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error ?? "Error al subir");
+      } else {
+        toast.success("Subido como draft ✓");
+        await load();
       }
-    }
-    setUploading(null);
-    setDebugLog((prev) => [...newLogs, ...prev]);
-    if (ok > 0) {
-      toast.success(`${ok} subido${ok !== 1 ? "s" : ""} como draft`);
-      setSelected(new Set());
-      await load();
-      setTab("sent");
+    } catch {
+      toast.error("Error de conexión");
+    } finally {
+      setUploading(null);
     }
   }
 
-  /* image picker */
-  async function openPicker(carouselId: string, slideId: string) {
-    setPickerState({ carouselId, slideId });
-    setPickerLoading(true);
-    setPickerImages(await fetch("/api/images").then((r) => r.json()));
-    setPickerLoading(false);
-  }
-  async function handleImageChange(imageId: string) {
-    if (!pickerState) return;
-    setChangingImage(true);
-    await fetch(`/api/carousels/${pickerState.carouselId}/slides/${pickerState.slideId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ imageId }),
-    });
-    setPickerState(null);
-    setChangingImage(false);
-    toast.success("Imagen actualizada · Genera para ver el resultado");
-    load();
+  async function handleDelete(carouselId: string) {
+    setDeleting(carouselId);
+    try {
+      await fetch(`/api/carousels/${carouselId}`, { method: "DELETE" });
+      setAll((prev) => prev.filter((c) => c.id !== carouselId));
+    } catch {
+      toast.error("Error al eliminar");
+    } finally {
+      setDeleting(null);
+    }
   }
 
-  /* ─── render ──────────────────────────────────────────────────────────── */
+  const counts = useMemo(() => ({
+    all: all.length,
+    pending: all.filter((c) => !c.sentAt).length,
+    sent: all.filter((c) => !!c.sentAt).length,
+  }), [all]);
+
+  const filtered = useMemo(() => {
+    let rows = all;
+    if (filter === "pending") rows = rows.filter((c) => !c.sentAt);
+    if (filter === "sent") rows = rows.filter((c) => !!c.sentAt);
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      rows = rows.filter((c) =>
+        (c.shortId ?? "").toLowerCase().includes(q) ||
+        c.name.toLowerCase().includes(q) ||
+        (c.sentToAccountName ?? "").toLowerCase().includes(q) ||
+        (c.appName ?? "").toLowerCase().includes(q) ||
+        (c.influencerName ?? "").toLowerCase().includes(q)
+      );
+    }
+    return rows;
+  }, [all, filter, search]);
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold">Carousels</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {pending.length} pendiente{pending.length !== 1 ? "s" : ""} · {sent.length} enviado{sent.length !== 1 ? "s" : ""}
-          </p>
-        </div>
-
-        {/* Botón subir — solo en pestaña pendientes */}
-        {tab === "pending" && (
-          accounts.length > 0 ? (
-            <DropdownMenu>
-              {/* @ts-expect-error — asChild Radix types mismatch */}
-              <DropdownMenuTrigger asChild>
-                <Button disabled={selected.size === 0 || !!uploading}>
-                  <Upload className="h-4 w-4 mr-2" />
-                  {uploading ? "Subiendo…" : `Subir (${selected.size}) a TikTok`}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {accounts.map((acc) => (
-                  <DropdownMenuItem key={acc.id} onClick={() => handleUpload(acc.id)}>
-                    @{acc.name}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : (
-            <Link href="/tiktok">
-              <Button variant="outline">Conectar TikTok primero</Button>
-            </Link>
-          )
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold">Carousels</h1>
+        {accounts.length === 0 && (
+          <Link href="/tiktok">
+            <Button variant="outline" size="sm">Conectar TikTok</Button>
+          </Link>
         )}
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 border-b">
-        {(["pending", "sent"] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`pb-2 px-3 text-sm font-medium border-b-2 transition-colors ${
-              tab === t ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {t === "pending" ? `Pendientes (${pending.length})` : `Enviados (${sent.length})`}
-          </button>
-        ))}
-      </div>
-
-      {/* Barra de acciones bulk — solo pendientes */}
-      {tab === "pending" && pending.length > 0 && (
-        <div className="flex items-center gap-3">
+      {/* Search + filtros */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-52">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
           <input
-            type="checkbox"
-            checked={selected.size === pending.length && pending.length > 0}
-            onChange={toggleAll}
-            className="h-4 w-4 cursor-pointer accent-primary"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por ID, nombre, cuenta…"
+            className="w-full rounded-lg border bg-background pl-8 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           />
-          <span className="text-xs text-muted-foreground">
-            {selected.size > 0 ? `${selected.size} seleccionado${selected.size !== 1 ? "s" : ""}` : "Seleccionar todo"}
-          </span>
-          {selected.size > 0 && (
-            <Button size="sm" variant="outline" onClick={bulkDiscard}
-              className="h-7 text-xs text-destructive hover:text-destructive border-destructive/40 hover:border-destructive">
-              <Trash2 className="h-3 w-3 mr-1" />
-              Descartar {selected.size}
-            </Button>
+          {search && (
+            <button onClick={() => setSearch("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+              <X className="h-3.5 w-3.5" />
+            </button>
           )}
         </div>
-      )}
 
-      {/* Lista */}
-      {rows.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-10 text-center">
-          {tab === "pending"
-            ? <>No hay carousels pendientes. <Link href="/generate" className="underline">Genera uno nuevo.</Link></>
-            : "Ningún carousel enviado aún."}
+        <div className="flex gap-1 rounded-lg border p-1 bg-muted/30">
+          {(["all", "pending", "sent"] as FilterVal[]).map((f) => (
+            <button key={f} onClick={() => setFilter(f)}
+              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                filter === f
+                  ? "bg-background shadow-sm text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {f === "all"
+                ? `Todos (${counts.all})`
+                : f === "pending"
+                ? `Pendientes (${counts.pending})`
+                : `Enviados (${counts.sent})`}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Grid */}
+      {filtered.length === 0 ? (
+        <p className="text-sm text-muted-foreground py-16 text-center">
+          {search
+            ? `Sin resultados para "${search}".`
+            : all.length === 0
+            ? <><Link href="/generate" className="underline">Importa un JSON</Link> para crear carousels.</>
+            : "Sin carousels en esta categoría."}
         </p>
       ) : (
-        <div className="space-y-3">
-          {rows.map((c) => (
-            <div key={c.id}
-              className={`rounded-xl border transition-colors ${
-                tab === "sent"
-                  ? "p-4 cursor-pointer hover:bg-muted/40 active:bg-muted/60"
-                  : `p-4 ${selected.has(c.id) ? "border-primary bg-primary/5" : "hover:bg-muted/30"}`
-              }`}
-              onClick={tab === "sent" ? () => router.push(`/carousels/${c.id}`) : undefined}
-            >
-              {/* ── ROW ENVIADO ── */}
-              {tab === "sent" && (
-                <div className="flex items-center gap-4">
-                  {/* ShortId */}
-                  <span className="shrink-0 text-2xl font-black font-mono tracking-widest text-foreground w-16">
-                    {c.shortId ?? "—"}
-                  </span>
-
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-sm truncate">{c.name}</div>
-                    <div className="text-xs text-muted-foreground mt-0.5 truncate">
-                      {[c.influencerName, c.appName].filter(Boolean).join(" × ")}
-                      {c.sentToAccountName && <span className="font-medium text-foreground"> · @{c.sentToAccountName}</span>}
-                      {c.sentAt && <span> · {fmtDate(c.sentAt)}</span>}
-                    </div>
-                  </div>
-
-                  {/* ZIP */}
-                  <a href={`/api/carousels/${c.id}/download`} className="shrink-0"
-                    onClick={(e) => e.stopPropagation()}>
-                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
-                      <Download className="h-3.5 w-3.5" />
-                    </Button>
-                  </a>
-                </div>
-              )}
-
-              {/* ── ROW PENDIENTE — cabecera ── */}
-              {tab === "pending" && (
-                <div className="flex items-center gap-3 flex-wrap">
-                  <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggleSelect(c.id)}
-                    className="h-4 w-4 cursor-pointer accent-primary" />
-                  {c.shortId && (
-                    <span className="bg-primary/10 text-primary text-sm font-mono font-black px-2 py-0.5 rounded tracking-widest shrink-0">
-                      {c.shortId}
-                    </span>
-                  )}
-                  <span className="font-semibold text-sm">{c.name}</span>
-                  <Badge variant={STATUS_VARIANT[c.status] ?? "secondary"}>{c.status}</Badge>
-                  <span className="text-xs text-muted-foreground">
-                    {[c.influencerName, c.appName].filter(Boolean).join(" × ")} · {c.slideCount} slides
-                  </span>
-                  <div className="flex items-center gap-1 ml-auto">
-                    <Button size="sm" variant={contentOpen.has(c.id) ? "secondary" : "ghost"}
-                      onClick={() => toggleContent(c.id)}>
-                      <LayoutList className="h-3.5 w-3.5 mr-1" /> Contenido
-                    </Button>
-                    <a href={`/api/carousels/${c.id}/download`}>
-                      <Button size="sm" variant="ghost"><Download className="h-3.5 w-3.5 mr-1" />ZIP</Button>
-                    </a>
-                    <button onClick={() => handleDelete(c.id)}
-                      className="rounded p-1.5 text-muted-foreground hover:text-destructive transition-colors">
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* ── Slides strip (pendientes sin panel abierto) ── */}
-              {tab === "pending" && !contentOpen.has(c.id) && c.slides?.length > 0 && (
-                <div className="flex gap-3 overflow-x-auto pb-2 mt-3">
-                  {c.slides.map((slide) => {
-                    const src = slide.generatedImagePath ?? slide.imagePath;
-                    return (
-                      <div key={slide.id} className="shrink-0 relative rounded-lg overflow-hidden bg-muted"
-                        style={{ width: 140, height: 249 }}>
-                        {src ? (
-                          <img src={src} alt={`Slide ${slide.order + 1}`} className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground">
-                            {slide.order + 1}
-                          </div>
-                        )}
-                        <span className="absolute bottom-0.5 right-1 text-[10px] text-white/80 font-medium">
-                          {slide.order + 1}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* ── Panel de contenido ── */}
-              {tab === "pending" && contentOpen.has(c.id) && c.slides?.length > 0 && (
-                <div className="mt-3 space-y-4">
-                  {/* ShortId destacado + ID slide thumbnail */}
-                  <div className="flex items-center gap-4 p-3 bg-muted/50 rounded-lg border">
-                    <div>
-                      <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1 font-semibold">ID</div>
-                      <code className="bg-background text-2xl px-4 py-1.5 rounded border font-mono font-black tracking-[0.25em] shadow-sm">
-                        {c.shortId ?? "—"}
-                      </code>
-                    </div>
-                    {c.idSlideImagePath && (
-                      <img src={c.idSlideImagePath} alt="ID slide"
-                        className="ml-auto w-16 rounded border shadow-sm" style={{ aspectRatio: "9/16", objectFit: "cover" }} />
-                    )}
-                  </div>
-
-                  {/* 2 columnas */}
-                  <div className="grid grid-cols-5 gap-5">
-                    {/* Izq: thumbnails */}
-                    <div className="col-span-2 space-y-2">
-                      <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">
-                        Slides
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        {c.slides.map((slide) => {
-                          const src = slide.generatedImagePath ?? slide.imagePath;
-                          return (
-                            <div key={slide.id} className="space-y-1">
-                              <div className="relative rounded-lg overflow-hidden bg-muted border"
-                                style={{ aspectRatio: "9/16" }}>
-                                {src
-                                  ? <img src={src} alt={`Slide ${slide.order + 1}`} className="w-full h-full object-cover" />
-                                  : <div className="w-full h-full flex items-center justify-center"><ImageIcon className="h-5 w-5 opacity-30" /></div>}
-                                <span className="absolute top-1 left-1 bg-black/70 text-white text-[10px] rounded px-1 font-medium">
-                                  {slide.order + 1}
-                                </span>
-                              </div>
-                              <Button size="sm" variant="outline" className="w-full h-6 text-[10px] px-1"
-                                onClick={() => openPicker(c.id, slide.id)}>
-                                Cambiar
-                              </Button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Der: textos */}
-                    <div className="col-span-3 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">Textos</div>
-                        <Button size="sm" variant="outline" className="h-6 text-xs" onClick={() => copyAllTexts(c.slides)}>
-                          <Copy className="h-3 w-3 mr-1" />Copiar todo
-                        </Button>
-                      </div>
-                      <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
-                        {c.slides.map((slide) => {
-                          const texts = parseTexts(slide.texts);
-                          const content = texts.map((t) => t.content).join("\n");
-                          return (
-                            <div key={slide.id} className="rounded-lg border bg-muted/30 p-3">
-                              <div className="flex items-center justify-between mb-1.5">
-                                <span className="text-[11px] font-bold uppercase tracking-wider text-primary">
-                                  SLIDE {slide.order + 1}
-                                </span>
-                                <Button size="sm" variant="ghost" className="h-5 text-[10px] px-1.5"
-                                  onClick={() => copySlideText(slide)}>
-                                  <Copy className="h-2.5 w-2.5 mr-0.5" />Copiar
-                                </Button>
-                              </div>
-                              {content.trim()
-                                ? <pre className="text-sm whitespace-pre-wrap font-sans leading-relaxed">{content}</pre>
-                                : <span className="text-xs text-muted-foreground italic">Sin texto</span>}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {filtered.map((c) => (
+            <CarouselCard
+              key={c.id}
+              c={c}
+              accounts={accounts}
+              uploading={uploading}
+              deleting={deleting}
+              onUpload={handleUpload}
+              onDelete={handleDelete}
+              onOpen={() => router.push(`/carousels/${c.id}`)}
+            />
           ))}
         </div>
       )}
+    </div>
+  );
+}
 
-      {/* Debug log TikTok */}
-      {debugLog.length > 0 && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold">TikTok API log</h2>
-            <button onClick={() => setDebugLog([])} className="text-xs text-muted-foreground hover:text-foreground">Limpiar</button>
-          </div>
-          {debugLog.map((entry, i) => (
-            <div key={i} className={`rounded-lg border p-3 text-xs font-mono space-y-2 ${entry.ok ? "border-green-500/30 bg-green-500/5" : "border-destructive/30 bg-destructive/5"}`}>
-              <div className="flex items-center gap-2 font-sans text-sm font-medium">
-                <span className={entry.ok ? "text-green-600 dark:text-green-400" : "text-destructive"}>{entry.ok ? "✓" : "✗"}</span>
-                {entry.carouselName}
-                {entry.error && <span className="text-destructive font-normal text-xs">{entry.error}</span>}
+/* ── Card ────────────────────────────────────────────────────────────── */
+function CarouselCard({
+  c, accounts, uploading, deleting, onUpload, onDelete, onOpen,
+}: {
+  c: Carousel;
+  accounts: TikTokAccount[];
+  uploading: string | null;
+  deleting: string | null;
+  onUpload: (id: string, accountId: string) => void;
+  onDelete: (id: string) => void;
+  onOpen: () => void;
+}) {
+  const isSent = !!c.sentAt;
+  const isLoading = uploading === c.id || deleting === c.id;
+
+  return (
+    <div
+      className={`flex flex-col rounded-2xl border bg-card overflow-hidden transition-all ${
+        isSent
+          ? "cursor-pointer hover:shadow-md hover:border-foreground/20"
+          : "hover:shadow-sm"
+      }`}
+      onClick={isSent ? onOpen : undefined}
+    >
+      {/* Slides — scroll horizontal */}
+      <div
+        className="flex gap-1 overflow-x-auto p-2 bg-muted/20 scrollbar-none"
+        style={{ scrollbarWidth: "none" }}
+        onClick={(e) => isSent && e.stopPropagation()}
+      >
+        {c.slides.length > 0 ? (
+          c.slides.map((slide) => {
+            const src = slide.generatedImagePath ?? slide.imagePath;
+            return (
+              <div key={slide.id}
+                className="shrink-0 rounded-md overflow-hidden bg-muted"
+                style={{ width: 54, height: 96 }}>
+                {src
+                  ? <img src={src} alt="" className="w-full h-full object-cover" />
+                  : <div className="w-full h-full bg-muted/50" />}
               </div>
-              {entry.imageUrls && entry.imageUrls.length > 0 && (
-                <div className="space-y-1">
-                  <div className="font-sans text-[10px] uppercase tracking-wide text-muted-foreground">
-                    URLs enviadas ({entry.imageUrls.length})
-                  </div>
-                  {entry.imageUrls.map((url, j) => (
-                    <div key={j} className="text-[11px] break-all opacity-80">
-                      <span className="text-muted-foreground mr-1">{j + 1}.</span>
-                      <a href={url} target="_blank" rel="noreferrer" className="underline underline-offset-2">{url}</a>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {entry.debug && (
-                <details>
-                  <summary className="cursor-pointer font-sans text-[10px] uppercase tracking-wide text-muted-foreground select-none">
-                    TikTok API response
-                  </summary>
-                  <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-all text-[11px] opacity-80">
-                    {JSON.stringify(entry.debug, null, 2)}
-                  </pre>
-                </details>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Modal imagen picker */}
-      {pickerState && (
-        <div className="fixed inset-0 bg-black/75 z-50 flex items-center justify-center p-4"
-          onClick={() => !changingImage && setPickerState(null)}>
-          <div className="bg-background rounded-xl border max-w-3xl w-full max-h-[85vh] flex flex-col shadow-2xl"
-            onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between border-b px-5 py-4 shrink-0">
-              <h3 className="font-semibold">Seleccionar imagen</h3>
-              <button onClick={() => !changingImage && setPickerState(null)}
-                className="text-muted-foreground hover:text-foreground p-1 rounded">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="overflow-y-auto flex-1 p-4">
-              {pickerLoading
-                ? <div className="text-center text-sm text-muted-foreground py-16">Cargando…</div>
-                : pickerImages.length === 0
-                  ? <div className="text-center text-sm text-muted-foreground py-16">No hay imágenes</div>
-                  : (
-                    <div className="grid grid-cols-4 gap-3">
-                      {pickerImages.map((img) => (
-                        <button key={img.id}
-                          className="rounded-lg overflow-hidden border-2 border-transparent hover:border-primary transition-all relative group"
-                          style={{ aspectRatio: "9/16" }}
-                          onClick={() => handleImageChange(img.id)}
-                          disabled={changingImage}>
-                          <img src={img.path} alt={img.tag} className="w-full h-full object-cover" />
-                          <div className="absolute bottom-0 inset-x-0 bg-black/70 text-white text-[9px] px-1.5 py-1 truncate opacity-0 group-hover:opacity-100 transition-opacity">
-                            {img.tag}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )
-              }
-            </div>
+            );
+          })
+        ) : (
+          <div className="w-full h-24 flex items-center justify-center text-xs text-muted-foreground">
+            Sin slides
           </div>
+        )}
+      </div>
+
+      {/* Footer */}
+      <div className="p-3 flex flex-col gap-1.5 flex-1">
+        {/* ID + pill */}
+        <div className="flex items-start justify-between gap-2">
+          <span className="text-2xl font-black font-mono leading-none tracking-wide">
+            {c.shortId ?? "—"}
+          </span>
+          {isSent && (
+            <span className="shrink-0 text-[10px] bg-green-500/15 text-green-600 dark:text-green-400 rounded-full px-2 py-0.5 font-semibold leading-tight mt-0.5">
+              Enviado
+            </span>
+          )}
         </div>
-      )}
+
+        {/* @cuenta · influencer × app */}
+        <div className="text-[11px] text-muted-foreground leading-snug">
+          {c.sentToAccountName && (
+            <span className="font-medium text-foreground">@{c.sentToAccountName}</span>
+          )}
+          {c.sentToAccountName && (c.appName || c.influencerName) && " · "}
+          {[c.influencerName, c.appName].filter(Boolean).join(" × ")}
+        </div>
+
+        {/* Acciones — solo pendientes */}
+        {!isSent && (
+          <div
+            className="flex items-center gap-1 mt-auto pt-1.5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {accounts.length > 0 ? (
+              <DropdownMenu>
+                {/* @ts-expect-error radix asChild */}
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="sm"
+                    className="flex-1 h-7 text-xs"
+                    disabled={isLoading}
+                  >
+                    <Upload className="h-3 w-3 mr-1" />
+                    {uploading === c.id ? "Subiendo…" : "Subir"}
+                    <ChevronDown className="h-3 w-3 ml-1 opacity-60" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  {accounts.map((acc) => (
+                    <DropdownMenuItem key={acc.id} onClick={() => onUpload(c.id, acc.id)}>
+                      @{acc.name}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Link href="/tiktok" className="flex-1">
+                <Button size="sm" variant="outline" className="w-full h-7 text-xs">
+                  Conectar cuenta
+                </Button>
+              </Link>
+            )}
+
+            <button
+              onClick={() => onDelete(c.id)}
+              disabled={isLoading}
+              className="shrink-0 rounded-lg p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-40"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
