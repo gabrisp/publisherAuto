@@ -2,12 +2,10 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { carousels, carouselSlides, tiktokAccounts, images, hashtags } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { compositeSlide, generateIdSlide } from "@/lib/image-processor";
+import { generateIdSlide } from "@/lib/image-processor";
 import { uploadCarouselAsDraft } from "@/lib/tiktok";
 import { uploadFile } from "@/lib/supabase";
 import { now, generateShortId } from "@/lib/ids";
-import type { TextElement } from "@/db/schema";
-import { newId } from "@/lib/ids";
 
 export async function POST(
   req: Request,
@@ -32,14 +30,15 @@ export async function POST(
     .where(eq(tiktokAccounts.id, accountId));
   if (!account) return NextResponse.json({ error: "Account not found" }, { status: 404 });
 
+  // Slides con sus URLs originales — sin compositar
   const slides = await db
     .select({
       id: carouselSlides.id,
       order: carouselSlides.order,
-      imageId: carouselSlides.imageId,
-      texts: carouselSlides.texts,
+      imagePath: images.path,
     })
     .from(carouselSlides)
+    .leftJoin(images, eq(carouselSlides.imageId, images.id))
     .where(eq(carouselSlides.carouselId, id))
     .orderBy(carouselSlides.order);
 
@@ -49,24 +48,11 @@ export async function POST(
   const idSlidePath = `generated/idslide_${id}.jpg`;
   const idSlideBuffer = await generateIdSlide(carousel.shortId!);
   await uploadFile(idSlidePath, idSlideBuffer, "image/jpeg");
-  const idSlideUrl = `${process.env.SUPABASE_URL}/storage/v1/object/public/uploads/${idSlidePath}`;
-  imageUrls.push(idSlideUrl);
+  imageUrls.push(`${process.env.SUPABASE_URL}/storage/v1/object/public/uploads/${idSlidePath}`);
 
-  // 2. Slides del carousel
+  // 2. Imágenes originales directamente (sin ningún procesado)
   for (const slide of slides) {
-    // Texto guardado en DB solo para copiar/pegar — nunca se renderiza sobre la imagen
-    const texts: TextElement[] = [];
-
-    let bgPath: string | null = null;
-    if (slide.imageId) {
-      const [img] = await db.select().from(images).where(eq(images.id, slide.imageId));
-      if (img) bgPath = img.path;
-    }
-
-    const buffer = await compositeSlide(bgPath, texts);
-    const storagePath = `generated/tiktok_${id}_${newId()}_${slide.order}.jpg`;
-    const publicUrl = await uploadFile(storagePath, buffer, "image/jpeg");
-    imageUrls.push(publicUrl);
+    if (slide.imagePath) imageUrls.push(slide.imagePath);
   }
 
   // 3. Hashtags como description
@@ -83,19 +69,13 @@ export async function POST(
       description
     );
 
-    // 4. Guardar cuenta y fecha de envío
+    // Guardar cuenta y fecha de envío
     await db
       .update(carousels)
       .set({ sentToAccountId: accountId, sentAt: now() })
       .where(eq(carousels.id, id));
 
-    return NextResponse.json({
-      ok: true,
-      publishId,
-      shortId: carousel.shortId,
-      imageUrls,
-      debug,
-    });
+    return NextResponse.json({ ok: true, publishId, shortId: carousel.shortId, imageUrls, debug });
   } catch (e) {
     const err = e as any;
     return NextResponse.json(

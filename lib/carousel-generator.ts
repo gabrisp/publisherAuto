@@ -6,10 +6,9 @@ import {
   apps,
   influencers,
 } from "@/db/schema";
-import type { TextElement } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { newId, now, generateShortId, parseTags } from "@/lib/ids";
-import { compositeSlide, generateIdSlide } from "@/lib/image-processor";
+import { generateIdSlide } from "@/lib/image-processor";
 import { uploadFile, deleteFile, urlToStoragePath } from "@/lib/supabase";
 import JSZip from "jszip";
 
@@ -20,7 +19,7 @@ type SlideJson = {
     tags?: string[];
     tag?: string;
   };
-  texts: TextElement[];
+  texts: unknown[];
 };
 
 type CarouselJson = {
@@ -136,23 +135,19 @@ export async function generateCarouselZip(carouselId: string): Promise<void> {
     .where(eq(carousels.id, carouselId));
   if (!carousel) throw new Error("Carousel not found");
 
-  // 1. Borrar archivos antiguos de Supabase Storage (best-effort)
-  const oldSlides = await db
-    .select({ generatedImagePath: carouselSlides.generatedImagePath })
-    .from(carouselSlides)
-    .where(eq(carouselSlides.carouselId, carouselId));
-
+  // 1. Limpiar ZIP e ID slide anteriores (no tocar imágenes originales)
   const pathsToDelete: string[] = [];
   if (carousel.zipPath) pathsToDelete.push(urlToStoragePath(carousel.zipPath));
-  pathsToDelete.push(`generated/idslide_${carouselId}.jpg`); // ID slide anterior
-  for (const s of oldSlides) {
-    if (s.generatedImagePath) pathsToDelete.push(urlToStoragePath(s.generatedImagePath));
-  }
+  pathsToDelete.push(`generated/idslide_${carouselId}.jpg`);
   await Promise.all(pathsToDelete.map((p) => deleteFile(p).catch(() => {})));
 
-  // 2. Generar nuevos slides
+  // 2. Slides: usar imagen original directamente, sin compositar
   const slides = await db
-    .select()
+    .select({
+      id: carouselSlides.id,
+      order: carouselSlides.order,
+      imageId: carouselSlides.imageId,
+    })
     .from(carouselSlides)
     .where(eq(carouselSlides.carouselId, carouselId))
     .orderBy(carouselSlides.order);
@@ -160,43 +155,38 @@ export async function generateCarouselZip(carouselId: string): Promise<void> {
   const zip = new JSZip();
 
   for (const slide of slides) {
-    // Texto guardado en DB solo para copiar/pegar — nunca se renderiza sobre la imagen
-    const texts: TextElement[] = [];
+    let originalUrl: string | null = null;
 
-    const slideFilename = `slide_${String(slide.order + 1).padStart(2, "0")}.jpg`;
-    const storagePath = `generated/${carouselId}_${slideFilename}`;
-
-    let imgPath: string | null = null;
     if (slide.imageId) {
       const [img] = await db.select().from(images).where(eq(images.id, slide.imageId));
-      if (img) imgPath = img.path; // URL pública de Supabase
+      if (img) originalUrl = img.path;
     }
 
-    const buffer = await compositeSlide(imgPath, texts);
-    const publicUrl = await uploadFile(storagePath, buffer, "image/jpeg");
-    zip.file(`${String(slide.order + 1).padStart(2, "0")}.jpg`, buffer);
-
+    // generatedImagePath apunta a la imagen original (son idénticas)
     await db
       .update(carouselSlides)
-      .set({ generatedImagePath: publicUrl, updatedAt: now() })
+      .set({ generatedImagePath: originalUrl, updatedAt: now() })
       .where(eq(carouselSlides.id, slide.id));
+
+    // Descargar original y añadir al ZIP
+    if (originalUrl) {
+      try {
+        const buf = await fetch(originalUrl).then((r) => r.arrayBuffer());
+        zip.file(`${String(slide.order + 1).padStart(2, "0")}.jpg`, Buffer.from(buf));
+      } catch {}
+    }
   }
 
-  // 3. Generar y subir ID slide (URL estable en Supabase, disponible para TikTok)
+  // 3. ID slide estable en Supabase para TikTok
   const idSlideBuffer = await generateIdSlide(carousel.shortId ?? carouselId.slice(0, 4));
   await uploadFile(`generated/idslide_${carouselId}.jpg`, idSlideBuffer, "image/jpeg");
 
-  // 4. Construir y subir ZIP
-  const zipFilename = `${carouselId}.zip`;
+  // 4. Subir ZIP
   const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
-  const zipUrl = await uploadFile(`generated/${zipFilename}`, zipBuffer, "application/zip");
+  const zipUrl = await uploadFile(`generated/${carouselId}.zip`, zipBuffer, "application/zip");
 
   await db
     .update(carousels)
-    .set({
-      zipPath: zipUrl,
-      status: "generated",
-      updatedAt: now(),
-    })
+    .set({ zipPath: zipUrl, status: "generated", updatedAt: now() })
     .where(eq(carousels.id, carouselId));
 }
