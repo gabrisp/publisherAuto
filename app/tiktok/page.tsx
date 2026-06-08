@@ -22,6 +22,7 @@ type Account = {
   id: string;
   name: string;
   tiktokUserId: string;
+  avatarUrl: string | null;
   createdAt: number;
 };
 
@@ -50,6 +51,8 @@ export default function TikTokPage() {
   const [manualRefreshToken, setManualRefreshToken] = useState("");
   const [manualExpiresIn, setManualExpiresIn] = useState("");
   const [addingManual, setAddingManual] = useState(false);
+  const [showToken, setShowToken] = useState(false);
+  const [showRefreshToken, setShowRefreshToken] = useState(false);
 
   async function loadAccounts() {
     const res = await fetch("/api/tiktok/accounts");
@@ -331,25 +334,37 @@ export default function TikTokPage() {
           {/* Row 2: access_token */}
           <div>
             <label className="text-xs text-muted-foreground block mb-1">access_token</label>
-            <input
-              type="text"
-              value={manualToken}
-              onChange={(e) => setManualToken(e.target.value)}
-              placeholder="act.xxxxxxxxxxxxxxxx…"
-              className="w-full border rounded-md px-3 py-2 text-sm bg-background font-mono"
-            />
+            <div className="relative">
+              <input
+                type={showToken ? "text" : "password"}
+                value={manualToken}
+                onChange={(e) => setManualToken(e.target.value)}
+                placeholder="act.xxxxxxxxxxxxxxxx…"
+                className="w-full border rounded-md px-3 py-2 text-sm bg-background font-mono pr-10"
+              />
+              <button type="button" onClick={() => setShowToken((v) => !v)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
           </div>
 
           {/* Row 3: refresh_token */}
           <div>
             <label className="text-xs text-muted-foreground block mb-1">refresh_token <span className="opacity-50">(opcional)</span></label>
-            <input
-              type="text"
-              value={manualRefreshToken}
-              onChange={(e) => setManualRefreshToken(e.target.value)}
-              placeholder="rft.xxxxxxxxxxxxxxxx…"
-              className="w-full border rounded-md px-3 py-2 text-sm bg-background font-mono"
-            />
+            <div className="relative">
+              <input
+                type={showRefreshToken ? "text" : "password"}
+                value={manualRefreshToken}
+                onChange={(e) => setManualRefreshToken(e.target.value)}
+                placeholder="rft.xxxxxxxxxxxxxxxx…"
+                className="w-full border rounded-md px-3 py-2 text-sm bg-background font-mono pr-10"
+              />
+              <button type="button" onClick={() => setShowRefreshToken((v) => !v)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                {showRefreshToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
           </div>
 
           {/* Row 4: expires_in + button */}
@@ -383,9 +398,14 @@ export default function TikTokPage() {
             className="flex items-center justify-between rounded-lg border p-4"
           >
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-gradient-to-br from-pink-500 to-cyan-400 flex items-center justify-center text-white font-bold text-sm">
-                {acc.name[0]?.toUpperCase()}
-              </div>
+              {acc.avatarUrl ? (
+                <img src={acc.avatarUrl} alt={acc.name}
+                  className="h-10 w-10 rounded-full object-cover shrink-0" />
+              ) : (
+                <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground font-bold text-sm shrink-0">
+                  {acc.name[0]?.toUpperCase()}
+                </div>
+              )}
               <div>
                 <p className="font-medium">{acc.name}</p>
                 <p className="text-xs text-muted-foreground">{acc.tiktokUserId}</p>

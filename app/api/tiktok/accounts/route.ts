@@ -10,6 +10,7 @@ export async function GET() {
       id: tiktokAccounts.id,
       name: tiktokAccounts.name,
       tiktokUserId: tiktokAccounts.tiktokUserId,
+      avatarUrl: tiktokAccounts.avatarUrl,
       createdAt: tiktokAccounts.createdAt,
     })
     .from(tiktokAccounts)
@@ -37,13 +38,13 @@ export async function POST(req: Request) {
   // Use provided open_id, or try fetching from API, or fall back to handle
   let tiktokUserId = openId?.trim() || handle.trim().toLowerCase();
   let displayName = handle.trim();
-  if (!openId?.trim()) {
-    try {
-      const info = await fetchTiktokUserInfo(accessToken.trim());
-      if (info?.display_name) displayName = info.display_name;
-    } catch {
-      // Token may be valid but user info fetch failed — proceed with handle
-    }
+  let avatarUrl: string | null = null;
+  try {
+    const info = await fetchTiktokUserInfo(accessToken.trim());
+    if (info?.display_name) displayName = info.display_name;
+    if (info?.avatar_url) avatarUrl = info.avatar_url;
+  } catch {
+    // Token may be valid but user info fetch failed — proceed with handle
   }
 
   // Calculate expiry timestamp if expires_in was provided
@@ -55,6 +56,7 @@ export async function POST(req: Request) {
     id: newId(),
     name: displayName,
     tiktokUserId,
+    avatarUrl,
     accessToken: accessToken.trim(),
     refreshToken: refreshToken?.trim() || null,
     tokenExpiresAt,
