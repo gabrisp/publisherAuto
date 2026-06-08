@@ -364,7 +364,13 @@ export default function CarouselsPage() {
                 )}
 
                 {/* Nombre + estado */}
-                <span className="font-semibold text-sm">{c.name}</span>
+                {tab === "sent" ? (
+                  <Link href={`/carousels/${c.id}`} className="font-semibold text-sm hover:underline">
+                    {c.name}
+                  </Link>
+                ) : (
+                  <span className="font-semibold text-sm">{c.name}</span>
+                )}
                 <Badge variant={STATUS_VARIANT[c.status] ?? "secondary"}>{c.status}</Badge>
                 <span className="text-xs text-muted-foreground">
                   {[c.influencerName, c.appName].filter(Boolean).join(" × ")} · {c.slideCount} slides

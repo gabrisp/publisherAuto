@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { carousels, carouselSlides, apps, influencers, images } from "@/db/schema";
+import { carousels, carouselSlides, apps, influencers, images, tiktokAccounts } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { deleteFile, urlToStoragePath } from "@/lib/supabase";
 
@@ -15,15 +15,17 @@ export async function GET(
       name: carousels.name,
       shortId: carousels.shortId,
       status: carousels.status,
-      renderText: carousels.renderText,
       zipPath: carousels.zipPath,
+      sentAt: carousels.sentAt,
       createdAt: carousels.createdAt,
       appName: apps.name,
       influencerName: influencers.name,
+      sentToAccountName: tiktokAccounts.name,
     })
     .from(carousels)
     .leftJoin(apps, eq(carousels.appId, apps.id))
     .leftJoin(influencers, eq(carousels.influencerId, influencers.id))
+    .leftJoin(tiktokAccounts, eq(carousels.sentToAccountId, tiktokAccounts.id))
     .where(eq(carousels.id, id));
 
   if (!carousel) return NextResponse.json({ error: "Not found" }, { status: 404 });

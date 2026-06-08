@@ -75,18 +75,18 @@ async function fetchToBuffer(url: string): Promise<Buffer> {
 export async function generateIdSlide(shortId: string): Promise<Buffer> {
   const w = DEFAULT_W;
   const h = DEFAULT_H;
+  // Usar "sans-serif" (siempre disponible en librsvg en cualquier servidor Linux)
+  // No usar Arial ni fuentes nombradas — en contenedores no están instaladas
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
-    <text x="540" y="1050"
-      font-family="Arial, sans-serif"
-      font-size="300"
+    <text
+      x="540"
+      y="${h / 2 + 120}"
+      font-family="sans-serif"
+      font-size="400"
       font-weight="bold"
       fill="white"
-      text-anchor="middle">${escapeXml(shortId)}</text>
-    <text x="540" y="1200"
-      font-family="Arial, sans-serif"
-      font-size="48"
-      fill="#888888"
-      text-anchor="middle">PlataformaAUTO</text>
+      text-anchor="middle"
+      dominant-baseline="middle">${escapeXml(shortId)}</text>
   </svg>`;
 
   return sharp({
@@ -94,11 +94,11 @@ export async function generateIdSlide(shortId: string): Promise<Buffer> {
       width: w,
       height: h,
       channels: 3,
-      background: { r: 17, g: 17, b: 17 },
+      background: { r: 0, g: 0, b: 0 },
     },
   })
     .composite([{ input: Buffer.from(svg), top: 0, left: 0 }])
-    .jpeg({ quality: 90 })
+    .jpeg({ quality: 98 })
     .toBuffer();
 }
 
