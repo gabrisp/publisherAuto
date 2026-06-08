@@ -1,9 +1,23 @@
 import sharp from "sharp";
 import type { TextElement } from "@/db/schema";
+import * as opentype from "opentype.js";
+import { readFileSync } from "fs";
+import path from "path";
 
 // Dimensiones por defecto solo para el ID slide (fondo sintético)
 const DEFAULT_W = 1080;
 const DEFAULT_H = 1920;
+
+// Carga la fuente una sola vez (Inter Bold) — nunca falla en servidor porque
+// está bundleada en lib/fonts/, no depende de fuentes del sistema
+let _font: opentype.Font | null = null;
+function getFont(): opentype.Font {
+  if (!_font) {
+    const buf = readFileSync(path.join(process.cwd(), "lib/fonts/Inter-Bold.ttf"));
+    _font = opentype.parse(buf.buffer as ArrayBuffer);
+  }
+  return _font;
+}
 
 function textToSvg(el: TextElement, canvasW: number, canvasH: number): Buffer {
   const anchor =
@@ -72,55 +86,28 @@ async function fetchToBuffer(url: string): Promise<Buffer> {
   return Buffer.from(await res.arrayBuffer());
 }
 
-/**
- * Dibuja un dígito como display de 7 segmentos usando solo <rect>.
- * Sin dependencia de fuentes del sistema — funciona en cualquier servidor.
- */
-function sevenSegDigit(ch: string, x: number, y: number, dw: number, dh: number, t: number): string {
-  const midH = Math.floor((dh - 3 * t) / 2);
-  const seg = {
-    a: `<rect x="${x + t}" y="${y}" width="${dw - 2 * t}" height="${t}"/>`,                  // top
-    b: `<rect x="${x + dw - t}" y="${y + t}" width="${t}" height="${midH}"/>`,               // top-right
-    c: `<rect x="${x + dw - t}" y="${y + t + midH + t}" width="${t}" height="${midH}"/>`,    // bottom-right
-    d: `<rect x="${x + t}" y="${y + dh - t}" width="${dw - 2 * t}" height="${t}"/>`,         // bottom
-    e: `<rect x="${x}" y="${y + t + midH + t}" width="${t}" height="${midH}"/>`,             // bottom-left
-    f: `<rect x="${x}" y="${y + t}" width="${t}" height="${midH}"/>`,                        // top-left
-    g: `<rect x="${x + t}" y="${y + t + midH}" width="${dw - 2 * t}" height="${t}"/>`,       // middle
-  };
-  const ON: Record<string, (keyof typeof seg)[]> = {
-    "0": ["a","b","c","d","e","f"],
-    "1": ["b","c"],
-    "2": ["a","b","d","e","g"],
-    "3": ["a","b","c","d","g"],
-    "4": ["b","c","f","g"],
-    "5": ["a","c","d","f","g"],
-    "6": ["a","c","d","e","f","g"],
-    "7": ["a","b","c"],
-    "8": ["a","b","c","d","e","f","g"],
-    "9": ["a","b","c","d","f","g"],
-  };
-  return (ON[ch] ?? ON["8"]).map((s) => seg[s]).join("");
-}
-
 export async function generateIdSlide(shortId: string): Promise<Buffer> {
   const CW = DEFAULT_W;   // 1080
   const CH = DEFAULT_H;   // 1920
+  const fontSize = 380;
 
-  // Dimensiones de cada dígito
-  const DW = 200, DH = 380, T = 36, GAP = 28;
-  const chars = shortId.slice(0, 6);
-  const totalW = chars.length * DW + (chars.length - 1) * GAP;
-  const startX = Math.floor((CW - totalW) / 2);
-  const startY = Math.floor((CH - DH) / 2);
+  const font = getFont();
 
-  let rects = "";
-  for (let i = 0; i < chars.length; i++) {
-    rects += sevenSegDigit(chars[i], startX + i * (DW + GAP), startY, DW, DH, T);
-  }
+  // Convierte el texto a paths SVG — sin texto, pura geometría, zero dependencia de fuentes
+  const pathObj = font.getPath(shortId, 0, 0, fontSize);
+  const bbox = pathObj.getBoundingBox();
+  const textW = bbox.x2 - bbox.x1;
+  const textH = bbox.y2 - bbox.y1;
 
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${CW}" height="${CH}">
-    <g fill="white">${rects}</g>
-  </svg>`;
+  // Centrar en el canvas
+  const tx = (CW - textW) / 2 - bbox.x1;
+  const ty = (CH - textH) / 2 - bbox.y1;
+
+  const centeredPath = font.getPath(shortId, tx, ty + textH, fontSize);
+  centeredPath.fill = "white";
+  const pathData = centeredPath.toSVG(1);
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${CW}" height="${CH}">${pathData}</svg>`;
 
   return sharp({
     create: { width: CW, height: CH, channels: 3, background: { r: 0, g: 0, b: 0 } },

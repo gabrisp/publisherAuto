@@ -344,12 +344,16 @@ export default function CarouselsPage() {
         <div className="space-y-3">
           {rows.map((c) => (
             <div key={c.id}
-              className={`rounded-xl border p-4 transition-colors ${
+              className={`relative rounded-xl border p-4 transition-colors ${
                 tab === "pending" && selected.has(c.id) ? "border-primary bg-primary/5" : "hover:bg-muted/30"
-              }`}
+              } ${tab === "sent" ? "cursor-pointer" : ""}`}
             >
+              {/* Overlay clickable en enviados — el botón ZIP queda encima con z-10 */}
+              {tab === "sent" && (
+                <Link href={`/carousels/${c.id}`} className="absolute inset-0 z-0 rounded-xl" aria-label={c.name} />
+              )}
               {/* ── Cabecera ── */}
-              <div className="flex items-center gap-3 flex-wrap">
+              <div className="relative z-10 flex items-center gap-3 flex-wrap">
                 {/* Checkbox (solo pendientes) */}
                 {tab === "pending" && (
                   <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggleSelect(c.id)}
@@ -364,13 +368,7 @@ export default function CarouselsPage() {
                 )}
 
                 {/* Nombre + estado */}
-                {tab === "sent" ? (
-                  <Link href={`/carousels/${c.id}`} className="font-semibold text-sm hover:underline">
-                    {c.name}
-                  </Link>
-                ) : (
-                  <span className="font-semibold text-sm">{c.name}</span>
-                )}
+                <span className="font-semibold text-sm">{c.name}</span>
                 <Badge variant={STATUS_VARIANT[c.status] ?? "secondary"}>{c.status}</Badge>
                 <span className="text-xs text-muted-foreground">
                   {[c.influencerName, c.appName].filter(Boolean).join(" × ")} · {c.slideCount} slides
@@ -406,9 +404,10 @@ export default function CarouselsPage() {
                   </div>
                 )}
 
-                {/* Descarga ZIP (tab sent) */}
+                {/* Descarga ZIP (tab sent) — z-10 para estar encima del overlay */}
                 {tab === "sent" && c.zipPath && (
-                  <a href={`/api/carousels/${c.id}/download`}>
+                  <a href={`/api/carousels/${c.id}/download`} className="relative z-10 ml-auto"
+                    onClick={(e) => e.stopPropagation()}>
                     <Button size="sm" variant="ghost"><Download className="h-3.5 w-3.5" /></Button>
                   </a>
                 )}
