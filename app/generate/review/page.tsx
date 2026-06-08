@@ -3,8 +3,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -194,18 +192,6 @@ export default function ReviewPage() {
       return n;
     });
     load();
-  }
-
-  async function handleToggleText(carouselId: string, current: number) {
-    const next = current === 1 ? 0 : 1;
-    await fetch(`/api/carousels/${carouselId}/render-text`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ renderText: next }),
-    });
-    setCarousels((prev) =>
-      prev.map((c) => (c.id === carouselId ? { ...c, renderText: next } : c))
-    );
   }
 
   async function handleGenerate(id: string) {
@@ -457,20 +443,6 @@ export default function ReviewPage() {
                 {[c.influencerName, c.appName].filter(Boolean).join(" × ")} ·{" "}
                 {c.slideCount} slides
               </span>
-
-              {/* Text toggle */}
-              <div className="flex items-center gap-2 ml-auto">
-                <Label htmlFor={`txt-${c.id}`} className="text-xs">
-                  Texto
-                </Label>
-                <Switch
-                  id={`txt-${c.id}`}
-                  checked={c.renderText === 1}
-                  onCheckedChange={() =>
-                    handleToggleText(c.id, c.renderText)
-                  }
-                />
-              </div>
 
               {/* Actions */}
               <Button

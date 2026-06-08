@@ -54,7 +54,8 @@ export async function POST(
 
   // 2. Slides del carousel
   for (const slide of slides) {
-    const texts: TextElement[] = carousel.renderText ? JSON.parse(slide.texts) : [];
+    // Texto guardado en DB solo para copiar/pegar — nunca se renderiza sobre la imagen
+    const texts: TextElement[] = [];
 
     let bgPath: string | null = null;
     if (slide.imageId) {

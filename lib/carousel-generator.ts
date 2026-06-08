@@ -160,8 +160,8 @@ export async function generateCarouselZip(carouselId: string): Promise<void> {
   const zip = new JSZip();
 
   for (const slide of slides) {
-    const allTexts: TextElement[] = JSON.parse(slide.texts);
-    const texts = carousel.renderText === 0 ? [] : allTexts;
+    // Texto guardado en DB solo para copiar/pegar — nunca se renderiza sobre la imagen
+    const texts: TextElement[] = [];
 
     const slideFilename = `slide_${String(slide.order + 1).padStart(2, "0")}.jpg`;
     const storagePath = `generated/${carouselId}_${slideFilename}`;
