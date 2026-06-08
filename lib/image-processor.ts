@@ -14,7 +14,9 @@ let _font: opentype.Font | null = null;
 function getFont(): opentype.Font {
   if (!_font) {
     const buf = readFileSync(path.join(process.cwd(), "lib/fonts/Inter-Bold.ttf"));
-    _font = opentype.parse(buf.buffer as ArrayBuffer);
+    // buf.buffer es el pool completo de Node — hay que slicear los bytes exactos
+    const arrayBuf = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
+    _font = opentype.parse(arrayBuf);
   }
   return _font;
 }
