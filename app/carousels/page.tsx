@@ -205,18 +205,14 @@ function CarouselCard({
 
   return (
     <div
-      className={`flex flex-col rounded-2xl border bg-card overflow-hidden transition-all ${
-        isSent
-          ? "cursor-pointer hover:shadow-md hover:border-foreground/20"
-          : "hover:shadow-sm"
-      }`}
-      onClick={isSent ? onOpen : undefined}
+      className="flex flex-col rounded-2xl border bg-card overflow-hidden transition-all cursor-pointer hover:shadow-md hover:border-foreground/20 active:scale-[0.99]"
+      onClick={onOpen}
     >
       {/* Slides — scroll horizontal */}
       <div
-        className="flex gap-1 overflow-x-auto p-2 bg-muted/20 scrollbar-none"
+        className="flex gap-1 overflow-x-auto p-2 bg-muted/20"
         style={{ scrollbarWidth: "none" }}
-        onClick={(e) => isSent && e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
         {c.slides.length > 0 ? (
           c.slides.map((slide) => {
@@ -264,21 +260,17 @@ function CarouselCard({
         {/* Acciones — solo pendientes */}
         {!isSent && (
           <div
-            className="flex items-center gap-1 mt-auto pt-1.5"
+            className="flex items-center gap-2 mt-auto pt-2"
             onClick={(e) => e.stopPropagation()}
           >
             {accounts.length > 0 ? (
               <DropdownMenu>
                 {/* @ts-expect-error radix asChild */}
                 <DropdownMenuTrigger asChild>
-                  <Button
-                    size="sm"
-                    className="flex-1 h-7 text-xs"
-                    disabled={isLoading}
-                  >
-                    <Upload className="h-3 w-3 mr-1" />
-                    {uploading === c.id ? "Subiendo…" : "Subir"}
-                    <ChevronDown className="h-3 w-3 ml-1 opacity-60" />
+                  <Button className="flex-1 gap-1.5" disabled={isLoading}>
+                    <Upload className="h-4 w-4" />
+                    {uploading === c.id ? "Subiendo…" : "Subir a TikTok"}
+                    <ChevronDown className="h-3.5 w-3.5 ml-auto opacity-70" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start">
@@ -290,19 +282,17 @@ function CarouselCard({
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <Link href="/tiktok" className="flex-1">
-                <Button size="sm" variant="outline" className="w-full h-7 text-xs">
-                  Conectar cuenta
-                </Button>
+              <Link href="/tiktok" className="flex-1" onClick={(e) => e.stopPropagation()}>
+                <Button variant="outline" className="w-full">Conectar cuenta</Button>
               </Link>
             )}
 
             <button
               onClick={() => onDelete(c.id)}
               disabled={isLoading}
-              className="shrink-0 rounded-lg p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-40"
+              className="shrink-0 rounded-lg p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-40"
             >
-              <Trash2 className="h-3.5 w-3.5" />
+              <Trash2 className="h-4 w-4" />
             </button>
           </div>
         )}
