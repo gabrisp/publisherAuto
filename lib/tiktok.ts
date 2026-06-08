@@ -88,6 +88,7 @@ export async function uploadCarouselAsDraft(
   const requestBody = {
     post_info: {
       title: caption,
+      auto_add_music: true,
     },
     source_info: {
       source: "PULL_FROM_URL",
