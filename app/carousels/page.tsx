@@ -137,7 +137,7 @@ export default function CarouselsPage() {
     filtered.length > 0 && filtered.every((c) => selected.has(c.id));
 
   return (
-    <div className="space-y-5 pb-24">
+    <div className="space-y-5 pb-24 pt-4 md:pt-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Carousels</h1>
@@ -238,7 +238,7 @@ export default function CarouselsPage() {
 
       {/* ── Import modal ── */}
       {showImport && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center p-0 sm:p-4"
+        <div className="fixed inset-0 z-[60] bg-black/60 flex items-end sm:items-center justify-center p-0 sm:p-4"
           onClick={() => setShowImport(false)}>
           <div className="bg-background w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl border shadow-xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}>

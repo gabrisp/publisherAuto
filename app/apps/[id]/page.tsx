@@ -32,7 +32,7 @@ export default function AppDetailPage() {
   if (!app) return <p className="text-sm text-muted-foreground">Loading…</p>;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pt-4 md:pt-6">
       <div className="flex items-center gap-3">
         <Link href="/apps">
           <Button variant="ghost" size="sm">

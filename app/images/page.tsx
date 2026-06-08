@@ -49,7 +49,7 @@ export default function GlobalImagesPage() {
   useEffect(() => { load(); }, []);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pt-4 md:pt-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Global Images</h1>
         <div className="flex gap-2">

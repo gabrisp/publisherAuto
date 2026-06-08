@@ -39,7 +39,7 @@ export default function TikTokPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-md">
+    <div className="space-y-6 max-w-md pt-4 md:pt-6">
       <Suspense><OAuthNotifier /></Suspense>
 
       <div className="flex items-center justify-between">

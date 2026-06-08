@@ -56,7 +56,7 @@ export default function InfluencerDetailPage() {
   if (!influencer) return <p className="text-sm text-muted-foreground">Loading…</p>;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pt-4 md:pt-6">
       <div className="flex items-center gap-3">
         <Link href="/influencers">
           <Button variant="ghost" size="sm">

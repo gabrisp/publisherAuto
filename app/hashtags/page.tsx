@@ -61,7 +61,7 @@ export default function HashtagsPage() {
       : "(sin hashtags — se usará el nombre del carousel)";
 
   return (
-    <div className="space-y-8 max-w-xl">
+    <div className="space-y-8 max-w-xl pt-4 md:pt-6">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold">Hashtags</h1>

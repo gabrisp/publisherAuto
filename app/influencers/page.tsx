@@ -52,7 +52,7 @@ export default function InfluencersPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-2xl pt-4 md:pt-6">
       <h1 className="text-2xl font-bold">Influencers</h1>
 
       <Card>
