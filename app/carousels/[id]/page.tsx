@@ -217,48 +217,40 @@ export default function CarouselDetailPage() {
 
   return (
     <div className="space-y-5">
-      {/* ── Sticky header with breadcrumb ── */}
-      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-sm border-b -mx-4 md:-mx-6 px-4 md:px-6 py-2">
-        <div className="flex items-center gap-1.5 min-w-0">
-          {/* Back */}
+      {/* ── Sticky header (main + sub) ── */}
+      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-sm border-b -mx-4 md:-mx-6 px-4 md:px-6 pt-2.5 pb-2 space-y-1.5">
+        {/* Row 1 — back · title · sent pill · prev/next · actions */}
+        <div className="flex items-center gap-2 min-w-0">
           <Link href="/carousels">
-            <Button variant="ghost" size="sm" className="-ml-1.5 h-8 w-8 p-0">
+            <Button variant="ghost" size="sm" className="-ml-2 h-8 w-8 p-0 shrink-0">
               <ChevronLeft className="h-4 w-4" />
             </Button>
           </Link>
 
-          {/* Breadcrumb */}
-          <span className="text-xs text-muted-foreground hidden sm:inline">Carousels</span>
-          {carousel.shortId && (
-            <>
-              <ChevronRight className="h-3 w-3 text-muted-foreground/50 shrink-0 hidden sm:block" />
-              <span className="text-xs font-mono font-bold">{carousel.shortId}</span>
-            </>
+          <h1 className="flex-1 font-bold text-base leading-tight truncate min-w-0">
+            {carousel.name}
+          </h1>
+
+          {isSent && (
+            <span className="shrink-0 text-xs bg-green-500/15 text-green-600 dark:text-green-400 rounded-full px-2 py-0.5 font-semibold">
+              Enviado
+            </span>
           )}
 
-          {/* Spacer */}
-          <div className="flex-1" />
-
           {/* Prev / Next */}
-          <div className="flex items-center gap-0.5">
-            <Button
-              variant="ghost" size="sm" className="h-8 w-8 p-0"
-              disabled={!prevId}
-              onClick={() => prevId && router.push(`/carousels/${prevId}`)}
-            >
+          <div className="flex items-center gap-0.5 shrink-0">
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0"
+              disabled={!prevId} onClick={() => prevId && router.push(`/carousels/${prevId}`)}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <Button
-              variant="ghost" size="sm" className="h-8 w-8 p-0"
-              disabled={!nextId}
-              onClick={() => nextId && router.push(`/carousels/${nextId}`)}
-            >
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0"
+              disabled={!nextId} onClick={() => nextId && router.push(`/carousels/${nextId}`)}>
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
 
-          {/* Acciones */}
-          <div className="flex items-center gap-1.5">
+          {/* Actions */}
+          <div className="flex items-center gap-1.5 shrink-0">
             {isPending && (
               <>
                 {accounts.length > 0 ? (
@@ -283,16 +275,11 @@ export default function CarouselDetailPage() {
                   </DropdownMenu>
                 ) : (
                   <Link href="/tiktok">
-                    <Button size="sm" variant="outline" className="h-8">
-                      Conectar TikTok
-                    </Button>
+                    <Button size="sm" variant="outline" className="h-8">Conectar TikTok</Button>
                   </Link>
                 )}
-                <button
-                  onClick={handleDelete}
-                  disabled={deleting}
-                  className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                >
+                <button onClick={handleDelete} disabled={deleting}
+                  className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
                   <Trash2 className="h-4 w-4" />
                 </button>
               </>
@@ -305,27 +292,25 @@ export default function CarouselDetailPage() {
             </a>
           </div>
         </div>
-      </div>
 
-      {/* ── Carousel name + meta ── */}
-      <div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <h1 className="text-xl font-bold leading-tight">{carousel.name}</h1>
-          {isSent && (
-            <span className="text-xs bg-green-500/15 text-green-600 dark:text-green-400 rounded-full px-2 py-0.5 font-semibold">
-              Enviado
-            </span>
+        {/* Row 2 — breadcrumb · meta */}
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground border-t pt-1.5">
+          <span>Carousels</span>
+          <ChevronRight className="h-3 w-3 opacity-40 shrink-0" />
+          <span className="font-mono font-semibold text-foreground">{carousel.shortId ?? "—"}</span>
+          {[carousel.influencerName, carousel.appName].filter(Boolean).length > 0 && (
+            <span className="opacity-40 mx-0.5">·</span>
           )}
-        </div>
-        <div className="text-xs text-muted-foreground mt-0.5">
-          {[carousel.influencerName, carousel.appName].filter(Boolean).join(" × ")}
+          <span className="truncate">
+            {[carousel.influencerName, carousel.appName].filter(Boolean).join(" × ")}
+          </span>
           {carousel.sentToAccountName && (
-            <span className="ml-2 font-medium text-foreground">
-              · @{carousel.sentToAccountName}
-            </span>
+            <><span className="opacity-40">·</span>
+            <span className="font-medium text-foreground">@{carousel.sentToAccountName}</span></>
           )}
           {carousel.sentAt && (
-            <span className="ml-1">· {fmtDate(carousel.sentAt)}</span>
+            <><span className="opacity-40">·</span>
+            <span>{fmtDate(carousel.sentAt)}</span></>
           )}
         </div>
       </div>
