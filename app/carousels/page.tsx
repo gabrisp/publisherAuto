@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -92,6 +93,7 @@ function fmtDate(ts: number) {
 /* ─── página ─────────────────────────────────────────────────────────────── */
 
 export default function CarouselsPage() {
+  const router = useRouter();
   const [all, setAll] = useState<CarouselRow[]>([]);
   const [accounts, setAccounts] = useState<TikTokAccount[]>([]);
   const [tab, setTab] = useState<"pending" | "sent">("sent");
@@ -312,46 +314,56 @@ export default function CarouselsPage() {
         <div className="space-y-3">
           {rows.map((c) => (
             <div key={c.id}
-              className={`relative rounded-xl border p-4 transition-colors ${
-                tab === "pending" && selected.has(c.id) ? "border-primary bg-primary/5" : "hover:bg-muted/30"
-              } ${tab === "sent" ? "cursor-pointer" : ""}`}
+              className={`rounded-xl border transition-colors ${
+                tab === "sent"
+                  ? "p-4 cursor-pointer hover:bg-muted/40 active:bg-muted/60"
+                  : `p-4 ${selected.has(c.id) ? "border-primary bg-primary/5" : "hover:bg-muted/30"}`
+              }`}
+              onClick={tab === "sent" ? () => router.push(`/carousels/${c.id}`) : undefined}
             >
-              {/* Overlay clickable en enviados — el botón ZIP queda encima con z-10 */}
+              {/* ── ROW ENVIADO ── */}
               {tab === "sent" && (
-                <Link href={`/carousels/${c.id}`} className="absolute inset-0 z-0 rounded-xl" aria-label={c.name} />
+                <div className="flex items-center gap-4">
+                  {/* ShortId */}
+                  <span className="shrink-0 text-2xl font-black font-mono tracking-widest text-foreground w-16">
+                    {c.shortId ?? "—"}
+                  </span>
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-sm truncate">{c.name}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5 truncate">
+                      {[c.influencerName, c.appName].filter(Boolean).join(" × ")}
+                      {c.sentToAccountName && <span className="font-medium text-foreground"> · @{c.sentToAccountName}</span>}
+                      {c.sentAt && <span> · {fmtDate(c.sentAt)}</span>}
+                    </div>
+                  </div>
+
+                  {/* ZIP */}
+                  <a href={`/api/carousels/${c.id}/download`} className="shrink-0"
+                    onClick={(e) => e.stopPropagation()}>
+                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
+                      <Download className="h-3.5 w-3.5" />
+                    </Button>
+                  </a>
+                </div>
               )}
-              {/* ── Cabecera ── */}
-              <div className="relative z-10 flex items-center gap-3 flex-wrap">
-                {/* Checkbox (solo pendientes) */}
-                {tab === "pending" && (
+
+              {/* ── ROW PENDIENTE — cabecera ── */}
+              {tab === "pending" && (
+                <div className="flex items-center gap-3 flex-wrap">
                   <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggleSelect(c.id)}
                     className="h-4 w-4 cursor-pointer accent-primary" />
-                )}
-
-                {/* ShortId */}
-                {c.shortId && (
-                  <code className="bg-primary/10 text-primary text-sm font-mono font-black px-2 py-0.5 rounded tracking-widest shrink-0">
-                    {c.shortId}
-                  </code>
-                )}
-
-                {/* Nombre + estado */}
-                <span className="font-semibold text-sm">{c.name}</span>
-                <Badge variant={STATUS_VARIANT[c.status] ?? "secondary"}>{c.status}</Badge>
-                <span className="text-xs text-muted-foreground">
-                  {[c.influencerName, c.appName].filter(Boolean).join(" × ")} · {c.slideCount} slides
-                </span>
-
-                {/* Enviado a (tab sent) */}
-                {tab === "sent" && c.sentToAccountName && (
-                  <span className="text-xs font-medium ml-auto">
-                    @{c.sentToAccountName}
-                    {c.sentAt && <span className="text-muted-foreground font-normal"> · {fmtDate(c.sentAt)}</span>}
+                  {c.shortId && (
+                    <span className="bg-primary/10 text-primary text-sm font-mono font-black px-2 py-0.5 rounded tracking-widest shrink-0">
+                      {c.shortId}
+                    </span>
+                  )}
+                  <span className="font-semibold text-sm">{c.name}</span>
+                  <Badge variant={STATUS_VARIANT[c.status] ?? "secondary"}>{c.status}</Badge>
+                  <span className="text-xs text-muted-foreground">
+                    {[c.influencerName, c.appName].filter(Boolean).join(" × ")} · {c.slideCount} slides
                   </span>
-                )}
-
-                {/* Acciones (tab pending) */}
-                {tab === "pending" && (
                   <div className="flex items-center gap-1 ml-auto">
                     <Button size="sm" variant={contentOpen.has(c.id) ? "secondary" : "ghost"}
                       onClick={() => toggleContent(c.id)}>
@@ -365,16 +377,8 @@ export default function CarouselsPage() {
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
-                )}
-
-                {/* Descarga ZIP (tab sent) — z-10 para estar encima del overlay */}
-                {tab === "sent" && (
-                  <a href={`/api/carousels/${c.id}/download`} className="relative z-10 ml-auto"
-                    onClick={(e) => e.stopPropagation()}>
-                    <Button size="sm" variant="ghost"><Download className="h-3.5 w-3.5" /></Button>
-                  </a>
-                )}
-              </div>
+                </div>
+              )}
 
               {/* ── Slides strip (pendientes sin panel abierto) ── */}
               {tab === "pending" && !contentOpen.has(c.id) && c.slides?.length > 0 && (

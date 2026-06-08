@@ -125,23 +125,23 @@ export default function CarouselDetailPage() {
       </div>
 
       {/* ShortId + ID slide */}
-      <div className="flex items-center gap-5 p-4 rounded-xl border bg-muted/30">
-        <div>
-          <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold mb-1">
-            ID del carousel
-          </div>
-          <code className="text-4xl font-mono font-black tracking-[0.3em] bg-background border rounded px-4 py-2 shadow-sm">
-            {carousel.shortId ?? "—"}
-          </code>
-        </div>
+      <div className="flex items-center gap-6 p-5 rounded-2xl border bg-muted/20">
         {idSlideUrl && (
           <img
             src={idSlideUrl}
             alt="ID slide"
-            className="w-20 rounded-lg border shadow"
+            className="shrink-0 w-16 rounded-lg border shadow-sm"
             style={{ aspectRatio: "9/16", objectFit: "cover" }}
           />
         )}
+        <div className="flex flex-col gap-1 min-w-0">
+          <span className="text-[11px] uppercase tracking-widest text-muted-foreground font-semibold">
+            ID del carousel
+          </span>
+          <span className="text-5xl font-black font-mono tracking-[0.15em] leading-none">
+            {carousel.shortId ?? "—"}
+          </span>
+        </div>
       </div>
 
       {/* Contenido: 2 columnas */}
