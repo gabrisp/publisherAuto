@@ -197,7 +197,7 @@ export default function CarouselsPage() {
 
       {/* ── Bulk action bar ── */}
       {selected.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-background border shadow-2xl rounded-2xl px-4 py-2.5">
+        <div className="fixed bottom-[88px] md:bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-background border shadow-2xl rounded-2xl px-4 py-2.5">
           {/* Select all toggle */}
           <button
             onClick={allFilteredSelected ? clearSelection : selectAll}

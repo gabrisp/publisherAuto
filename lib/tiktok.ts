@@ -79,8 +79,10 @@ export async function uploadCarouselAsDraft(
 ): Promise<UploadResult> {
   const fresh = await refreshTokenIfNeeded(account);
 
-  // Usar description (hashtags) si está disponible; si no, el nombre del carousel
-  const caption = description ? description.slice(0, 2200) : title.slice(0, 90);
+  // Nombre del carousel + hashtags (o solo nombre si no hay hashtags)
+  const caption = description
+    ? `${title}\n${description}`.slice(0, 2200)
+    : title.slice(0, 2200);
 
   const endpoint = `${TIKTOK_API}/post/publish/content/init/`;
   const requestBody = {

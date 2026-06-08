@@ -48,8 +48,8 @@ export async function POST(
     // 1. ID slide como primera imagen (URL estable en Supabase)
     const idSlidePath = `generated/idslide_${id}.jpg`;
     const idSlideBuffer = await generateIdSlide(carousel.shortId!);
-    await uploadFile(idSlidePath, idSlideBuffer, "image/jpeg");
-    imageUrls.push(`${process.env.SUPABASE_URL}/storage/v1/object/public/uploads/${idSlidePath}`);
+    const idSlideUrl = await uploadFile(idSlidePath, idSlideBuffer, "image/jpeg");
+    imageUrls.push(idSlideUrl);
 
     // 2. Imágenes originales directamente (sin ningún procesado)
     for (const slide of slides) {
@@ -61,7 +61,8 @@ export async function POST(
     try {
       const hashtagRows = await db.select().from(hashtags).orderBy(hashtags.createdAt);
       if (hashtagRows.length > 0) {
-        description = hashtagRows.map((h) => `#${h.tag}`).join(" ");
+        const shuffled = [...hashtagRows].sort(() => Math.random() - 0.5).slice(0, 5);
+        description = shuffled.map((h) => `#${h.tag}`).join(" ");
       }
     } catch {
       // tabla hashtags no existe o query falla — continuar sin description

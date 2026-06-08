@@ -32,7 +32,7 @@ export default function RootLayout({
             <NavSidebar />
             <div className="flex flex-1 flex-col overflow-hidden">
               <header className="flex h-12 shrink-0 items-center justify-between border-b px-4">
-                <span className="text-sm font-semibold md:hidden">PlataformaAUTO</span>
+                <span className="text-sm font-semibold md:hidden">AUTO</span>
                 <ThemeToggle />
               </header>
               <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-20 md:pb-6">{children}</main>
