@@ -96,7 +96,7 @@ export async function uploadCarouselAsDraft(
       photo_cover_index: 0,
       photo_images: imageUrls,
     },
-    post_mode: "MEDIA_UPLOAD",
+    post_mode: "DIRECT_POST",
     media_type: "PHOTO",
   };
 
