@@ -43,7 +43,11 @@ export async function POST(req: Request) {
     );
   }
 
-  const tag = serializeTags(tagValues);
+  // Expand underscore-separated tags: "front-day_gym" → ["front-day", "gym"]
+  const expandedTags = tagValues.flatMap((t) =>
+    t.split("_").map((s) => s.trim().toLowerCase()).filter(Boolean)
+  );
+  const tag = serializeTags(expandedTags);
   const ext = file.name.split(".").pop() ?? "jpg";
   const filename = `${newId()}.${ext}`;
   const storagePath = `images/${filename}`;

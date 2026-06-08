@@ -3,14 +3,7 @@
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Upload, Trash2, Search, X, ChevronDown } from "lucide-react";
+import { Search, X, LayoutGrid, List, Trash2, CheckSquare } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 
@@ -36,57 +29,21 @@ type Carousel = {
   slides: Slide[];
 };
 
-type TikTokAccount = { id: string; name: string };
 type FilterVal = "all" | "pending" | "sent";
+type ViewMode = "grid" | "row";
 
-/* ── Page ────────────────────────────────────────────────────────────── */
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
+/* ── Page ────────────────────────────────────────────────────────────── */
 export default function CarouselsPage() {
   const router = useRouter();
-  const { data: all = [], mutate: mutateCarousels } = useSWR<Carousel[]>("/api/carousels", fetcher);
-  const { data: accounts = [] } = useSWR<TikTokAccount[]>("/api/tiktok/accounts", fetcher);
+  const { data: all = [], mutate } = useSWR<Carousel[]>("/api/carousels", fetcher);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<FilterVal>("all");
-  const [uploading, setUploading] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState<string | null>(null);
+  const [view, setView] = useState<ViewMode>("grid");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  async function handleUpload(carouselId: string, accountId: string) {
-    setUploading(carouselId);
-    try {
-      const res = await fetch(`/api/carousels/${carouselId}/tiktok`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ accountId }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error ?? "Error al subir");
-      } else {
-        toast.success("Subido como draft ✓");
-        mutateCarousels(); // revalida en background, sin bloquear UI
-      }
-    } catch {
-      toast.error("Error de conexión");
-    } finally {
-      setUploading(null);
-    }
-  }
-
-  async function handleDelete(carouselId: string) {
-    setDeleting(carouselId);
-    // Optimistic: quitar de la cache al instante
-    mutateCarousels((prev) => prev?.filter((c) => c.id !== carouselId), false);
-    try {
-      await fetch(`/api/carousels/${carouselId}`, { method: "DELETE" });
-    } catch {
-      toast.error("Error al eliminar");
-      mutateCarousels(); // revertir si falla
-    } finally {
-      setDeleting(null);
-    }
-  }
-
+  /* ── Filtering ── */
   const counts = useMemo(() => ({
     all: all.length,
     pending: all.filter((c) => !c.sentAt).length,
@@ -110,20 +67,50 @@ export default function CarouselsPage() {
     return rows;
   }, [all, filter, search]);
 
-  return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">Carousels</h1>
-        {accounts.length === 0 && (
-          <Link href="/tiktok">
-            <Button variant="outline" size="sm">Conectar TikTok</Button>
-          </Link>
-        )}
-      </div>
+  /* ── Selection ── */
+  function toggleSelect(id: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    e.preventDefault();
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
 
-      {/* Search + filtros */}
+  function selectAll() {
+    setSelected(new Set(filtered.map((c) => c.id)));
+  }
+
+  function clearSelection() {
+    setSelected(new Set());
+  }
+
+  /* ── Bulk delete ── */
+  async function handleBulkDelete() {
+    if (!confirm(`¿Eliminar ${selected.size} carousel${selected.size > 1 ? "s" : ""}?`)) return;
+    const ids = [...selected];
+    setSelected(new Set());
+    mutate((prev) => prev?.filter((c) => !ids.includes(c.id)), false);
+    try {
+      await Promise.all(ids.map((id) => fetch(`/api/carousels/${id}`, { method: "DELETE" })));
+    } catch {
+      toast.error("Error al eliminar");
+      mutate();
+    }
+  }
+
+  const allFilteredSelected =
+    filtered.length > 0 && filtered.every((c) => selected.has(c.id));
+
+  return (
+    <div className="space-y-5 pb-24">
+      {/* Header */}
+      <h1 className="text-2xl font-bold">Carousels</h1>
+
+      {/* Toolbar */}
       <div className="flex items-center gap-3 flex-wrap">
+        {/* Search */}
         <div className="relative flex-1 min-w-52">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
           <input
@@ -140,6 +127,7 @@ export default function CarouselsPage() {
           )}
         </div>
 
+        {/* Filtros */}
         <div className="flex gap-1 rounded-lg border p-1 bg-muted/30">
           {(["all", "pending", "sent"] as FilterVal[]).map((f) => (
             <button key={f} onClick={() => setFilter(f)}
@@ -147,19 +135,32 @@ export default function CarouselsPage() {
                 filter === f
                   ? "bg-background shadow-sm text-foreground"
                   : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {f === "all"
-                ? `Todos (${counts.all})`
-                : f === "pending"
-                ? `Pendientes (${counts.pending})`
+              }`}>
+              {f === "all" ? `Todos (${counts.all})`
+                : f === "pending" ? `Pendientes (${counts.pending})`
                 : `Enviados (${counts.sent})`}
             </button>
           ))}
         </div>
+
+        {/* Vista */}
+        <div className="flex gap-0.5 rounded-lg border p-1 bg-muted/30">
+          <button
+            onClick={() => setView("grid")}
+            title="Grid"
+            className={`p-1.5 rounded-md transition-colors ${view === "grid" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+            <LayoutGrid className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={() => setView("row")}
+            title="Lista"
+            className={`p-1.5 rounded-md transition-colors ${view === "row" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+            <List className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
 
-      {/* Grid */}
+      {/* Lista vacía */}
       {filtered.length === 0 ? (
         <p className="text-sm text-muted-foreground py-16 text-center">
           {search
@@ -168,87 +169,164 @@ export default function CarouselsPage() {
             ? <><Link href="/generate" className="underline">Importa un JSON</Link> para crear carousels.</>
             : "Sin carousels en esta categoría."}
         </p>
-      ) : (
+      ) : view === "grid" ? (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {filtered.map((c) => (
-            <CarouselCard
+            <CarouselGridCard
               key={c.id}
               c={c}
-              accounts={accounts}
-              uploading={uploading}
-              deleting={deleting}
-              onUpload={handleUpload}
-              onDelete={handleDelete}
+              selected={selected.has(c.id)}
+              onToggleSelect={(e) => toggleSelect(c.id, e)}
               onOpen={() => router.push(`/carousels/${c.id}`)}
             />
           ))}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {filtered.map((c) => (
+            <CarouselRowItem
+              key={c.id}
+              c={c}
+              selected={selected.has(c.id)}
+              onToggleSelect={(e) => toggleSelect(c.id, e)}
+              onOpen={() => router.push(`/carousels/${c.id}`)}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* ── Bulk action bar ── */}
+      {selected.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-background border shadow-2xl rounded-2xl px-4 py-2.5">
+          {/* Select all toggle */}
+          <button
+            onClick={allFilteredSelected ? clearSelection : selectAll}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-lg hover:bg-muted/50"
+          >
+            <CheckSquare className="h-3.5 w-3.5" />
+            {allFilteredSelected ? "Deseleccionar todo" : "Seleccionar todo"}
+          </button>
+
+          <div className="w-px h-4 bg-border" />
+
+          <span className="text-sm font-semibold px-1 tabular-nums">
+            {selected.size} seleccionado{selected.size > 1 ? "s" : ""}
+          </span>
+
+          <div className="w-px h-4 bg-border" />
+
+          <button
+            onClick={clearSelection}
+            className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-lg hover:bg-muted/50 transition-colors"
+          >
+            Cancelar
+          </button>
+
+          <button
+            onClick={handleBulkDelete}
+            className="flex items-center gap-1.5 text-sm font-medium text-destructive hover:bg-destructive/10 rounded-lg px-3 py-1.5 transition-colors"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Eliminar
+          </button>
         </div>
       )}
     </div>
   );
 }
 
-/* ── Card ────────────────────────────────────────────────────────────── */
-function CarouselCard({
-  c, accounts, uploading, deleting, onUpload, onDelete, onOpen,
+/* ── Shared helpers ──────────────────────────────────────────────────── */
+function SlideThumbs({ slides, small = false }: { slides: Slide[]; small?: boolean }) {
+  const w = small ? 36 : 54;
+  const h = small ? 64 : 96;
+  return (
+    <div className="flex gap-1 overflow-x-auto shrink-0" style={{ scrollbarWidth: "none" }}>
+      {slides.length > 0 ? (
+        slides.map((slide) => {
+          const src = slide.generatedImagePath ?? slide.imagePath;
+          return (
+            <div key={slide.id}
+              className="shrink-0 rounded-md overflow-hidden bg-muted"
+              style={{ width: w, height: h }}>
+              {src
+                ? <img src={src} alt="" className="w-full h-full object-cover" />
+                : <div className="w-full h-full bg-muted/50" />}
+            </div>
+          );
+        })
+      ) : (
+        <div className="rounded-md bg-muted/50 flex items-center justify-center text-[10px] text-muted-foreground"
+          style={{ width: w, height: h }}>–</div>
+      )}
+    </div>
+  );
+}
+
+function SentPill() {
+  return (
+    <span className="shrink-0 text-[10px] bg-green-500/15 text-green-600 dark:text-green-400 rounded-full px-2 py-0.5 font-semibold leading-tight">
+      Enviado
+    </span>
+  );
+}
+
+function Checkbox({ checked, onClick }: { checked: boolean; onClick: (e: React.MouseEvent) => void }) {
+  return (
+    <div
+      onClick={onClick}
+      className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all cursor-pointer shrink-0
+        ${checked
+          ? "bg-primary border-primary text-primary-foreground"
+          : "border-muted-foreground/40 bg-background/80 hover:border-primary/60"
+        }`}
+    >
+      {checked && (
+        <svg viewBox="0 0 10 8" className="w-3 h-3 fill-none stroke-current stroke-[1.8]">
+          <polyline points="1,4 4,7 9,1" />
+        </svg>
+      )}
+    </div>
+  );
+}
+
+/* ── Grid card ───────────────────────────────────────────────────────── */
+function CarouselGridCard({
+  c, selected, onToggleSelect, onOpen,
 }: {
   c: Carousel;
-  accounts: TikTokAccount[];
-  uploading: string | null;
-  deleting: string | null;
-  onUpload: (id: string, accountId: string) => void;
-  onDelete: (id: string) => void;
+  selected: boolean;
+  onToggleSelect: (e: React.MouseEvent) => void;
   onOpen: () => void;
 }) {
   const isSent = !!c.sentAt;
-  const isLoading = uploading === c.id || deleting === c.id;
-
   return (
     <div
-      className="flex flex-col rounded-2xl border bg-card overflow-hidden transition-all cursor-pointer hover:shadow-md hover:border-foreground/20 active:scale-[0.99]"
+      role="button"
+      tabIndex={0}
+      className={`relative flex flex-col rounded-2xl border bg-card overflow-hidden transition-all cursor-pointer hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
+        ${selected ? "border-primary ring-1 ring-primary" : "hover:border-foreground/20"}`}
       onClick={onOpen}
+      onKeyDown={(e) => e.key === "Enter" && onOpen()}
     >
-      {/* Slides — scroll horizontal */}
-      <div
-        className="flex gap-1 overflow-x-auto p-2 bg-muted/20"
-        style={{ scrollbarWidth: "none" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {c.slides.length > 0 ? (
-          c.slides.map((slide) => {
-            const src = slide.generatedImagePath ?? slide.imagePath;
-            return (
-              <div key={slide.id}
-                className="shrink-0 rounded-md overflow-hidden bg-muted"
-                style={{ width: 54, height: 96 }}>
-                {src
-                  ? <img src={src} alt="" className="w-full h-full object-cover" />
-                  : <div className="w-full h-full bg-muted/50" />}
-              </div>
-            );
-          })
-        ) : (
-          <div className="w-full h-24 flex items-center justify-center text-xs text-muted-foreground">
-            Sin slides
-          </div>
-        )}
+      {/* Checkbox — top-left */}
+      <div className="absolute top-2 left-2 z-10" onClick={onToggleSelect}>
+        <Checkbox checked={selected} onClick={onToggleSelect} />
+      </div>
+
+      {/* Slides strip */}
+      <div className="p-2 pt-8 bg-muted/20">
+        <SlideThumbs slides={c.slides} />
       </div>
 
       {/* Footer */}
-      <div className="p-3 flex flex-col gap-1.5 flex-1">
-        {/* ID + pill */}
+      <div className="p-3 flex flex-col gap-1.5">
         <div className="flex items-start justify-between gap-2">
           <span className="text-2xl font-black font-mono leading-none tracking-wide">
             {c.shortId ?? "—"}
           </span>
-          {isSent && (
-            <span className="shrink-0 text-[10px] bg-green-500/15 text-green-600 dark:text-green-400 rounded-full px-2 py-0.5 font-semibold leading-tight mt-0.5">
-              Enviado
-            </span>
-          )}
+          {isSent && <SentPill />}
         </div>
-
-        {/* @cuenta · influencer × app */}
+        <p className="text-[11px] text-muted-foreground leading-snug truncate">{c.name}</p>
         <div className="text-[11px] text-muted-foreground leading-snug">
           {c.sentToAccountName && (
             <span className="font-medium text-foreground">@{c.sentToAccountName}</span>
@@ -256,47 +334,58 @@ function CarouselCard({
           {c.sentToAccountName && (c.appName || c.influencerName) && " · "}
           {[c.influencerName, c.appName].filter(Boolean).join(" × ")}
         </div>
-
-        {/* Acciones — solo pendientes */}
-        {!isSent && (
-          <div
-            className="flex items-center gap-2 mt-auto pt-2"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {accounts.length > 0 ? (
-              <DropdownMenu>
-                {/* @ts-expect-error radix asChild */}
-                <DropdownMenuTrigger asChild>
-                  <Button className="flex-1 gap-1.5" disabled={isLoading}>
-                    <Upload className="h-4 w-4" />
-                    {uploading === c.id ? "Subiendo…" : "Subir a TikTok"}
-                    <ChevronDown className="h-3.5 w-3.5 ml-auto opacity-70" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                  {accounts.map((acc) => (
-                    <DropdownMenuItem key={acc.id} onClick={() => onUpload(c.id, acc.id)}>
-                      @{acc.name}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : (
-              <Link href="/tiktok" className="flex-1" onClick={(e) => e.stopPropagation()}>
-                <Button variant="outline" className="w-full">Conectar cuenta</Button>
-              </Link>
-            )}
-
-            <button
-              onClick={() => onDelete(c.id)}
-              disabled={isLoading}
-              className="shrink-0 rounded-lg p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-40"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          </div>
-        )}
       </div>
+    </div>
+  );
+}
+
+/* ── Row item ────────────────────────────────────────────────────────── */
+function CarouselRowItem({
+  c, selected, onToggleSelect, onOpen,
+}: {
+  c: Carousel;
+  selected: boolean;
+  onToggleSelect: (e: React.MouseEvent) => void;
+  onOpen: () => void;
+}) {
+  const isSent = !!c.sentAt;
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      className={`flex items-center gap-3 rounded-xl border bg-card px-4 py-3 cursor-pointer transition-all hover:shadow-sm active:scale-[0.995] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
+        ${selected ? "border-primary ring-1 ring-primary" : "hover:border-foreground/20"}`}
+      onClick={onOpen}
+      onKeyDown={(e) => e.key === "Enter" && onOpen()}
+    >
+      {/* Checkbox */}
+      <Checkbox checked={selected} onClick={onToggleSelect} />
+
+      {/* Slides */}
+      <SlideThumbs slides={c.slides} small />
+
+      {/* ID */}
+      <span className="text-xl font-black font-mono tracking-wide shrink-0 w-14 leading-none">
+        {c.shortId ?? "—"}
+      </span>
+
+      {/* Nombre + meta */}
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold text-sm truncate leading-tight">{c.name}</p>
+        <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
+          {c.sentToAccountName && (
+            <span className="font-medium text-foreground">@{c.sentToAccountName} · </span>
+          )}
+          {[c.influencerName, c.appName].filter(Boolean).join(" × ")}
+        </p>
+      </div>
+
+      {/* Pill */}
+      {isSent ? <SentPill /> : (
+        <span className="shrink-0 text-[10px] bg-muted text-muted-foreground rounded-full px-2 py-0.5 font-medium leading-tight">
+          Pendiente
+        </span>
+      )}
     </div>
   );
 }

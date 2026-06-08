@@ -19,14 +19,18 @@ export function generateShortId() {
 
 /**
  * Parse the `tag` column value into an array of tags.
- * Supports both legacy plain strings ("biceps") and new JSON arrays ('["biceps","arm"]').
+ * Supports:
+ *   - JSON arrays:          '["biceps","arm"]'  → ["biceps", "arm"]
+ *   - underscore-separated: "front-day_gym"     → ["front-day", "gym"]
+ *   - plain single string:  "biceps"            → ["biceps"]
  */
 export function parseTags(raw: string): string[] {
   if (!raw) return [];
   if (raw.startsWith("[")) {
-    try { return JSON.parse(raw) as string[]; } catch {}
+    try { return (JSON.parse(raw) as string[]).map((t) => t.trim().toLowerCase()).filter(Boolean); } catch {}
   }
-  return [raw];
+  // underscore separates multiple tags; hyphens are part of the tag name
+  return raw.split("_").map((t) => t.trim().toLowerCase()).filter(Boolean);
 }
 
 /** Serialize an array of tags for storage in the `tag` column. */

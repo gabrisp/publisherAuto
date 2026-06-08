@@ -9,7 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronLeft, Download, Copy, Upload, ChevronDown, Trash2, X, ImageIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Copy, Upload, ChevronDown, Trash2, X, ImageIcon } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useParams, useRouter } from "next/navigation";
@@ -69,6 +69,11 @@ export default function CarouselDetailPage() {
 
   const { data: carousel, mutate } = useSWR<CarouselDetail>(`/api/carousels/${id}`, fetcher);
   const { data: accounts = [] } = useSWR<TikTokAccount[]>("/api/tiktok/accounts", fetcher);
+  // Lista completa para prev/next — usa el mismo caché que /carousels
+  const { data: allCarousels = [] } = useSWR<{ id: string }[]>("/api/carousels", fetcher);
+  const currentIndex = allCarousels.findIndex((c) => c.id === id);
+  const prevId = currentIndex > 0 ? allCarousels[currentIndex - 1].id : null;
+  const nextId = currentIndex < allCarousels.length - 1 ? allCarousels[currentIndex + 1].id : null;
 
   // Picker de imagen
   const [pickerSlideId, setPickerSlideId] = useState<string | null>(null);
@@ -202,6 +207,24 @@ export default function CarouselDetailPage() {
             )}
             {carousel.sentAt && <span className="ml-1">· {fmtDate(carousel.sentAt)}</span>}
           </div>
+        </div>
+
+        {/* Prev / Next */}
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost" size="sm"
+            disabled={!prevId}
+            onClick={() => prevId && router.push(`/carousels/${prevId}`)}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost" size="sm"
+            disabled={!nextId}
+            onClick={() => nextId && router.push(`/carousels/${nextId}`)}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
         </div>
 
         {/* Acciones header */}
