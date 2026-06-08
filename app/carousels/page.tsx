@@ -95,7 +95,7 @@ function fmtDate(ts: number) {
 export default function CarouselsPage() {
   const [all, setAll] = useState<CarouselRow[]>([]);
   const [accounts, setAccounts] = useState<TikTokAccount[]>([]);
-  const [tab, setTab] = useState<"pending" | "sent">("pending");
+  const [tab, setTab] = useState<"pending" | "sent">("sent");
 
   // Pendientes: estado de acciones
   const [selected, setSelected] = useState<Set<string>>(new Set());
