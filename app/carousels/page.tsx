@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import useSWR from "swr";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -39,25 +40,16 @@ type TikTokAccount = { id: string; name: string };
 type FilterVal = "all" | "pending" | "sent";
 
 /* ── Page ────────────────────────────────────────────────────────────── */
+const fetcher = (url: string) => fetch(url).then((r) => r.json());
+
 export default function CarouselsPage() {
   const router = useRouter();
-  const [all, setAll] = useState<Carousel[]>([]);
-  const [accounts, setAccounts] = useState<TikTokAccount[]>([]);
+  const { data: all = [], mutate: mutateCarousels } = useSWR<Carousel[]>("/api/carousels", fetcher);
+  const { data: accounts = [] } = useSWR<TikTokAccount[]>("/api/tiktok/accounts", fetcher);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<FilterVal>("all");
   const [uploading, setUploading] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
-
-  async function load() {
-    const [cRes, aRes] = await Promise.all([
-      fetch("/api/carousels"),
-      fetch("/api/tiktok/accounts"),
-    ]);
-    setAll(await cRes.json());
-    setAccounts(await aRes.json());
-  }
-
-  useEffect(() => { load(); }, []);
 
   async function handleUpload(carouselId: string, accountId: string) {
     setUploading(carouselId);
@@ -72,7 +64,7 @@ export default function CarouselsPage() {
         toast.error(data.error ?? "Error al subir");
       } else {
         toast.success("Subido como draft ✓");
-        await load();
+        mutateCarousels(); // revalida en background, sin bloquear UI
       }
     } catch {
       toast.error("Error de conexión");
@@ -83,11 +75,13 @@ export default function CarouselsPage() {
 
   async function handleDelete(carouselId: string) {
     setDeleting(carouselId);
+    // Optimistic: quitar de la cache al instante
+    mutateCarousels((prev) => prev?.filter((c) => c.id !== carouselId), false);
     try {
       await fetch(`/api/carousels/${carouselId}`, { method: "DELETE" });
-      setAll((prev) => prev.filter((c) => c.id !== carouselId));
     } catch {
       toast.error("Error al eliminar");
+      mutateCarousels(); // revertir si falla
     } finally {
       setDeleting(null);
     }
