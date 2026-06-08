@@ -18,8 +18,6 @@ import {
   Trash2,
   X,
   ImageIcon,
-  Grid2x2,
-  LayoutGrid,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -83,8 +81,6 @@ export default function CarouselDetailPage() {
   const prevId = currentIndex > 0 ? allCarousels[currentIndex - 1].id : null;
   const nextId = currentIndex < allCarousels.length - 1 ? allCarousels[currentIndex + 1].id : null;
 
-  // Slides view toggle
-  const [slidesView, setSlidesView] = useState<"normal" | "mini">("normal");
 
   // Picker de imagen
   const [pickerSlideId, setPickerSlideId] = useState<string | null>(null);
@@ -339,72 +335,31 @@ export default function CarouselDetailPage() {
       <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
         {/* Slides */}
         <div className="md:col-span-2 space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold">Slides · {carousel.slides.length}</h2>
-            <button
-              onClick={() => setSlidesView((v) => (v === "normal" ? "mini" : "normal"))}
-              className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-              title={
-                slidesView === "normal"
-                  ? "Vista mini (4 por fila)"
-                  : "Vista normal (2 por fila)"
-              }
-            >
-              {slidesView === "normal" ? (
-                <Grid2x2 className="h-3.5 w-3.5" />
-              ) : (
-                <LayoutGrid className="h-3.5 w-3.5" />
-              )}
-            </button>
-          </div>
-          <div
-            className={`grid gap-2 ${
-              slidesView === "normal" ? "grid-cols-2" : "grid-cols-4"
-            }`}
-          >
+          <h2 className="text-sm font-semibold">Slides · {carousel.slides.length}</h2>
+          <div className="grid grid-cols-4 gap-2">
             {carousel.slides.map((slide) => {
               const src = slide.generatedImagePath ?? slide.imagePath;
               return (
-                <div key={slide.id} className="space-y-1">
-                  <div
-                    className="relative rounded-lg overflow-hidden bg-muted border"
-                    style={{ aspectRatio: "9/16" }}
-                  >
-                    {src ? (
-                      <img
-                        src={src}
-                        alt={`Slide ${slide.order + 1}`}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <ImageIcon className="h-5 w-5 opacity-30" />
-                      </div>
-                    )}
-                    <span className="absolute top-1 left-1 bg-black/60 text-white text-[10px] rounded px-1 font-medium">
-                      {slide.order + 1}
-                    </span>
-                  </div>
-                  {/* Change image button */}
-                  {isPending &&
-                    (slidesView === "normal" ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="w-full h-7 text-xs"
-                        onClick={() => openPicker(slide.id)}
-                      >
-                        Cambiar imagen
-                      </Button>
-                    ) : (
-                      <button
-                        className="w-full flex items-center justify-center py-0.5 text-muted-foreground hover:text-foreground transition-colors"
-                        onClick={() => openPicker(slide.id)}
-                        title="Cambiar imagen"
-                      >
-                        <ImageIcon className="h-3 w-3" />
-                      </button>
-                    ))}
+                <div
+                  key={slide.id}
+                  className={`relative rounded-lg overflow-hidden bg-muted border ${isPending ? "cursor-pointer active:opacity-80" : ""}`}
+                  style={{ aspectRatio: "9/16" }}
+                  onClick={isPending ? () => openPicker(slide.id) : undefined}
+                >
+                  {src ? (
+                    <img
+                      src={src}
+                      alt={`Slide ${slide.order + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <ImageIcon className="h-5 w-5 opacity-30" />
+                    </div>
+                  )}
+                  <span className="absolute top-1 left-1 bg-black/60 text-white text-[10px] rounded px-1 font-medium">
+                    {slide.order + 1}
+                  </span>
                 </div>
               );
             })}
