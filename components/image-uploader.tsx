@@ -27,7 +27,11 @@ export function ImageUploader({ scope, appId, influencerId, onUploaded }: Props)
 
   function tagsFromFilename(filename: string): string[] {
     const nameWithoutExt = filename.replace(/\.[^.]+$/, "");
-    const parts = nameWithoutExt.split("_").filter((p) => /^[a-zA-Z]+$/.test(p));
+    // split on "_", drop pure-numeric counters, keep everything else (hyphens allowed)
+    const parts = nameWithoutExt
+      .split("_")
+      .map((p) => p.trim().toLowerCase())
+      .filter((p) => p.length > 0 && !/^\d+$/.test(p));
     return parts.length > 0 ? parts : [""];
   }
 
