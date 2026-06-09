@@ -5,19 +5,12 @@ import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft } from "lucide-react";
 import Link from "next/link";
+import { CarouselGrid, type CarouselRow } from "@/components/carousel-grid";
 
 type Account = {
   id: string;
   name: string;
   avatarUrl: string | null;
-  createdAt: number;
-};
-
-type CarouselItem = {
-  id: string;
-  name: string;
-  shortId: string | null;
-  sentAt: number | null;
   createdAt: number;
 };
 
@@ -32,13 +25,13 @@ function fmtDate(ts: number) {
 export default function TikTokAccountPage() {
   const { id } = useParams<{ id: string }>();
   const [account, setAccount] = useState<Account | null>(null);
-  const [carousels, setCarousels] = useState<CarouselItem[]>([]);
+  const [carousels, setCarousels] = useState<CarouselRow[]>([]);
 
   useEffect(() => {
     fetch(`/api/tiktok/accounts/${id}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => d && setAccount(d));
-    fetch(`/api/carousels?list=1&sentToAccountId=${id}`)
+    fetch(`/api/carousels?sentToAccountId=${id}`)
       .then((r) => (r.ok ? r.json() : []))
       .then(setCarousels);
   }, [id]);
@@ -50,7 +43,7 @@ export default function TikTokAccountPage() {
   }
 
   return (
-    <div className="space-y-6 pt-4 md:pt-6 max-w-md">
+    <div className="space-y-6 pt-4 md:pt-6">
       {/* Header */}
       <div className="flex items-center gap-3">
         <Link href="/tiktok">
@@ -78,33 +71,14 @@ export default function TikTokAccountPage() {
       </div>
 
       {/* Carousels enviados */}
-      <div className="space-y-3">
+      <div className="space-y-3 pb-6">
         <h2 className="text-sm font-semibold">
           Carousels enviados ({carousels.length})
         </h2>
-        {carousels.length === 0 ? (
-          <p className="text-xs text-muted-foreground py-2">
-            Ningún carousel enviado todavía.
-          </p>
-        ) : (
-          <div className="space-y-1.5">
-            {carousels.map((c) => (
-              <Link key={c.id} href={`/carousels/${c.id}`}>
-                <div className="flex items-center gap-3 rounded-xl border bg-card px-3 py-2.5 hover:shadow-sm transition-shadow cursor-pointer">
-                  <span className="font-black font-mono text-lg w-12 shrink-0 leading-none">
-                    {c.shortId ?? "—"}
-                  </span>
-                  <span className="flex-1 text-sm truncate">{c.name}</span>
-                  {c.sentAt && (
-                    <span className="text-[10px] bg-green-500/15 text-green-600 dark:text-green-400 rounded-full px-2 py-0.5 font-semibold shrink-0">
-                      Enviado
-                    </span>
-                  )}
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
+        <CarouselGrid
+          carousels={carousels}
+          emptyText="Ningún carousel enviado todavía."
+        />
       </div>
     </div>
   );

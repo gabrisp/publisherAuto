@@ -172,9 +172,9 @@ export default function CarouselDetailPage() {
 
   function copySlideText(slide: Slide) {
     const content = parseTexts(slide.texts).map((t) => t.content).join("\n");
-    if (!content.trim()) { toast("Sin texto"); return; }
+    if (!content.trim()) { toast("Sin texto", { duration: 1000 }); return; }
     navigator.clipboard.writeText(content);
-    toast.success("Copiado");
+    toast("✓ Copiado", { duration: 800 });
   }
 
   function copyAllTexts() {
@@ -183,7 +183,7 @@ export default function CarouselDetailPage() {
       `SLIDE ${i + 1}\n${parseTexts(s.texts).map((t) => t.content).join("\n") || "(sin texto)"}`
     );
     navigator.clipboard.writeText(parts.join("\n\n"));
-    toast.success("Todos los textos copiados");
+    toast("✓ Copiado todo", { duration: 800 });
   }
 
   /* ── Loading ── */

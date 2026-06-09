@@ -40,7 +40,7 @@ export default function CarouselsPage() {
   const router = useRouter();
   const { data: all = [], mutate } = useSWR<Carousel[]>("/api/carousels", fetcher, SWR_OPTS);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<FilterVal>("all");
+  const [filter, setFilter] = useState<FilterVal>("pending");
   const [filterApp, setFilterApp] = useState("");
   const [filterInfluencer, setFilterInfluencer] = useState("");
   const [view, setView] = useState<ViewMode>("grid");
@@ -181,16 +181,16 @@ export default function CarouselsPage() {
 
         {/* Filtros */}
         <div className="flex gap-1 rounded-lg border p-1 bg-muted/30">
-          {(["all", "pending", "sent"] as FilterVal[]).map((f) => (
+          {(["pending", "sent", "all"] as FilterVal[]).map((f) => (
             <button key={f} onClick={() => setFilter(f)}
               className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
                 filter === f
                   ? "bg-background shadow-sm text-foreground"
                   : "text-muted-foreground hover:text-foreground"
               }`}>
-              {f === "all" ? `Todos (${counts.all})`
-                : f === "pending" ? `Pendientes (${counts.pending})`
-                : `Enviados (${counts.sent})`}
+              {f === "pending" ? `Pendientes (${counts.pending})`
+                : f === "sent" ? `Enviados (${counts.sent})`
+                : `Todos (${counts.all})`}
             </button>
           ))}
         </div>

@@ -72,24 +72,66 @@ async function fetchToBuffer(url: string): Promise<Buffer> {
   return Buffer.from(await res.arrayBuffer());
 }
 
-export async function generateIdSlide(shortId: string): Promise<Buffer> {
-  const CW = DEFAULT_W;
-  const CH = DEFAULT_H;
+/**
+ * 7-segment display digit as SVG <rect> elements.
+ * Zero font dependency — librsvg renders geometry without needing system fonts.
+ */
+function sevenSegDigit(d: number, ox: number, oy: number): string {
+  const W = 180;   // digit width
+  const H = 300;   // digit height
+  const T = 32;    // segment thickness
+  const G = 6;     // gap at each segment tip
+  const R = 10;    // corner radius
 
-  // SVG puro con texto centrado — usa fuentes del sistema (disponibles en cualquier Linux/Netlify)
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${CW}" height="${CH}">
-    <text
-      x="540" y="1060"
-      font-family="Helvetica Neue, Arial, Helvetica, sans-serif"
-      font-size="380"
-      font-weight="bold"
-      fill="white"
-      text-anchor="middle"
-    >${shortId}</text>
-  </svg>`;
+  // 7 segment rectangles (local coords)
+  const seg: Record<string, string> = {
+    a: `<rect x="${T + G}" y="${G}" width="${W - 2 * T - 2 * G}" height="${T}" rx="${R}"/>`,                          // top
+    b: `<rect x="${W - T}" y="${T + G}" width="${T}" height="${H / 2 - T - 2 * G}" rx="${R}"/>`,                      // top-right
+    c: `<rect x="${W - T}" y="${H / 2 + G}" width="${T}" height="${H / 2 - T - 2 * G}" rx="${R}"/>`,                  // bottom-right
+    d: `<rect x="${T + G}" y="${H - T - G}" width="${W - 2 * T - 2 * G}" height="${T}" rx="${R}"/>`,                  // bottom
+    e: `<rect x="0" y="${H / 2 + G}" width="${T}" height="${H / 2 - T - 2 * G}" rx="${R}"/>`,                        // bottom-left
+    f: `<rect x="0" y="${T + G}" width="${T}" height="${H / 2 - T - 2 * G}" rx="${R}"/>`,                            // top-left
+    g: `<rect x="${T + G}" y="${(H - T) / 2}" width="${W - 2 * T - 2 * G}" height="${T}" rx="${R}"/>`,               // middle
+  };
+
+  const on: Record<number, string[]> = {
+    0: ["a","b","c","d","e","f"],
+    1: ["b","c"],
+    2: ["a","b","d","e","g"],
+    3: ["a","b","c","d","g"],
+    4: ["b","c","f","g"],
+    5: ["a","c","d","f","g"],
+    6: ["a","c","d","e","f","g"],
+    7: ["a","b","c"],
+    8: ["a","b","c","d","e","f","g"],
+    9: ["a","b","c","d","f","g"],
+  };
+
+  const rects = on[d].map((s) => seg[s]).join("");
+  return `<g transform="translate(${ox},${oy})" fill="white">${rects}</g>`;
+}
+
+export async function generateIdSlide(shortId: string): Promise<Buffer> {
+  const CW = DEFAULT_W;   // 1080
+  const CH = DEFAULT_H;   // 1920
+
+  const DW = 180;  // digit bounding box width
+  const DH = 300;  // digit bounding box height
+  const GAP = 28;  // gap between digits
+
+  const digits = shortId.padStart(4, "0").split("").map(Number);
+  const totalW = 4 * DW + 3 * GAP;
+  const startX = Math.floor((CW - totalW) / 2);   // ~138
+  const startY = Math.floor((CH - DH) / 2);        // ~810
+
+  const digitElems = digits
+    .map((d, i) => sevenSegDigit(d, startX + i * (DW + GAP), startY))
+    .join("");
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${CW}" height="${CH}">${digitElems}</svg>`;
 
   return sharp({
-    create: { width: CW, height: CH, channels: 3, background: { r: 0, g: 0, b: 0 } },
+    create: { width: CW, height: CH, channels: 3, background: { r: 17, g: 17, b: 17 } },
   })
     .composite([{ input: Buffer.from(svg), top: 0, left: 0 }])
     .jpeg({ quality: 90 })

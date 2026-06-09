@@ -79,9 +79,15 @@ export async function uploadCarouselAsDraft(
 ): Promise<UploadResult> {
   const fresh = await refreshTokenIfNeeded(account);
 
+  // Build caption: name + hashtags (max 2200 chars)
+  const caption = description
+    ? `${title}\n${description}`.slice(0, 2200)
+    : title.slice(0, 2200);
+
   const endpoint = `${TIKTOK_API}/post/publish/content/init/`;
-  // MEDIA_UPLOAD (draft inbox) does NOT accept post_info — TikTok rejects it
-  const requestBody = {
+  // Only include post_info when we have a non-empty caption —
+  // TikTok rejects an empty/missing post_info with "invalid_params"
+  const requestBody: Record<string, unknown> = {
     source_info: {
       source: "PULL_FROM_URL",
       photo_cover_index: 0,
@@ -90,6 +96,9 @@ export async function uploadCarouselAsDraft(
     post_mode: "MEDIA_UPLOAD",
     media_type: "PHOTO",
   };
+  if (caption.trim()) {
+    requestBody.post_info = { description: caption };
+  }
 
   const initRes = await fetch(endpoint, {
     method: "POST",

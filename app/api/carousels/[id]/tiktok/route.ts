@@ -56,8 +56,8 @@ export async function POST(
       if (slide.imagePath) imageUrls.push(slide.imagePath);
     }
 
-    // 3. Hashtags como description (tabla puede no existir → ignorar)
-    let description: string | undefined;
+    // 3. Hashtags como description — usa nombre del carousel si no hay hashtags
+    let description: string = carousel.name;
     try {
       const hashtagRows = await db.select().from(hashtags).orderBy(hashtags.createdAt);
       if (hashtagRows.length > 0) {
@@ -65,7 +65,7 @@ export async function POST(
         description = shuffled.map((h) => `#${h.tag}`).join(" ");
       }
     } catch {
-      // tabla hashtags no existe o query falla — continuar sin description
+      // tabla hashtags no existe o query falla — usar nombre del carousel
     }
 
     // 4. Subir a TikTok

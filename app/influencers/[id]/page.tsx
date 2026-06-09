@@ -9,14 +9,13 @@ import { ChevronLeft, Download, Upload } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import type { Influencer, Image } from "@/db/schema";
-
-type CarouselItem = { id: string; name: string; shortId: string | null; sentAt: number | null };
+import { CarouselGrid, type CarouselRow } from "@/components/carousel-grid";
 
 export default function InfluencerDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [influencer, setInfluencer] = useState<Influencer | null>(null);
   const [images, setImages] = useState<Image[]>([]);
-  const [carousels, setCarousels] = useState<CarouselItem[]>([]);
+  const [carousels, setCarousels] = useState<CarouselRow[]>([]);
   const [uploadingRef, setUploadingRef] = useState(false);
   const refInputRef = useRef<HTMLInputElement>(null);
 
@@ -31,7 +30,7 @@ export default function InfluencerDetailPage() {
   }
 
   async function loadCarousels() {
-    const res = await fetch(`/api/carousels?list=1&influencerId=${id}`);
+    const res = await fetch(`/api/carousels?influencerId=${id}`);
     if (res.ok) setCarousels(await res.json());
   }
 
@@ -138,25 +137,9 @@ export default function InfluencerDetailPage() {
       </div>
 
       {/* Carousels */}
-      <div className="space-y-3">
+      <div className="space-y-3 pb-6">
         <h2 className="text-sm font-semibold">Carousels ({carousels.length})</h2>
-        {carousels.length === 0 ? (
-          <p className="text-xs text-muted-foreground py-2">Ningún carousel todavía.</p>
-        ) : (
-          <div className="space-y-1.5">
-            {carousels.map((c) => (
-              <Link key={c.id} href={`/carousels/${c.id}`}>
-                <div className="flex items-center gap-3 rounded-xl border bg-card px-3 py-2.5 hover:shadow-sm transition-shadow cursor-pointer">
-                  <span className="font-black font-mono text-lg w-12 shrink-0 leading-none">{c.shortId ?? "—"}</span>
-                  <span className="flex-1 text-sm truncate">{c.name}</span>
-                  {c.sentAt && (
-                    <span className="text-[10px] bg-green-500/15 text-green-600 dark:text-green-400 rounded-full px-2 py-0.5 font-semibold shrink-0">Enviado</span>
-                  )}
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
+        <CarouselGrid carousels={carousels} />
       </div>
     </div>
   );
