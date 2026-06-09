@@ -14,7 +14,6 @@ const links = [
 
 export function BottomNav() {
   const pathname = usePathname();
-  const router = useRouter();
 
   async function handleLogout() {
     const supabase = getSupabaseBrowser();
