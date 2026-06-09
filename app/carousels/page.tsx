@@ -41,6 +41,8 @@ export default function CarouselsPage() {
   const { data: all = [], mutate } = useSWR<Carousel[]>("/api/carousels", fetcher, SWR_OPTS);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<FilterVal>("all");
+  const [filterApp, setFilterApp] = useState("");
+  const [filterInfluencer, setFilterInfluencer] = useState("");
   const [view, setView] = useState<ViewMode>("grid");
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -83,10 +85,19 @@ export default function CarouselsPage() {
     sent: all.filter((c) => !!c.sentAt).length,
   }), [all]);
 
+  const appOptions = useMemo(() =>
+    [...new Set(all.map(c => c.appName).filter((n): n is string => !!n))].sort(),
+    [all]);
+  const influencerOptions = useMemo(() =>
+    [...new Set(all.map(c => c.influencerName).filter((n): n is string => !!n))].sort(),
+    [all]);
+
   const filtered = useMemo(() => {
     let rows = all;
     if (filter === "pending") rows = rows.filter((c) => !c.sentAt);
     if (filter === "sent") rows = rows.filter((c) => !!c.sentAt);
+    if (filterApp) rows = rows.filter((c) => c.appName === filterApp);
+    if (filterInfluencer) rows = rows.filter((c) => c.influencerName === filterInfluencer);
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       rows = rows.filter((c) =>
@@ -98,7 +109,7 @@ export default function CarouselsPage() {
       );
     }
     return rows;
-  }, [all, filter, search]);
+  }, [all, filter, filterApp, filterInfluencer, search]);
 
   /* ── Selection ── */
   function toggleSelect(id: string, e: React.MouseEvent) {
@@ -200,6 +211,40 @@ export default function CarouselsPage() {
           </button>
         </div>
       </div>
+
+      {/* Filtros secundarios: app + influencer */}
+      {(appOptions.length > 1 || influencerOptions.length > 1) && (
+        <div className="flex items-center gap-2 flex-wrap -mt-1">
+          {appOptions.length > 1 && (
+            <select
+              value={filterApp}
+              onChange={(e) => setFilterApp(e.target.value)}
+              className="rounded-lg border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="">Todos los apps</option>
+              {appOptions.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+          )}
+          {influencerOptions.length > 1 && (
+            <select
+              value={filterInfluencer}
+              onChange={(e) => setFilterInfluencer(e.target.value)}
+              className="rounded-lg border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="">Todos los influencers</option>
+              {influencerOptions.map(i => <option key={i} value={i}>{i}</option>)}
+            </select>
+          )}
+          {(filterApp || filterInfluencer) && (
+            <button
+              onClick={() => { setFilterApp(""); setFilterInfluencer(""); }}
+              className="text-xs text-muted-foreground hover:text-foreground px-2 py-1.5 rounded-lg hover:bg-muted/50 transition-colors"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Lista vacía */}
       {filtered.length === 0 ? (

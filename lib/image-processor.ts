@@ -80,7 +80,7 @@ export async function generateIdSlide(shortId: string): Promise<Buffer> {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${CW}" height="${CH}">
     <text
       x="540" y="1060"
-      font-family="DejaVu Sans Mono Bold, DejaVu Sans Mono, Liberation Mono, Courier New, monospace"
+      font-family="Helvetica Neue, Arial, Helvetica, sans-serif"
       font-size="380"
       font-weight="bold"
       fill="white"

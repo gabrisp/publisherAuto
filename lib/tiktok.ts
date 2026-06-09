@@ -79,16 +79,9 @@ export async function uploadCarouselAsDraft(
 ): Promise<UploadResult> {
   const fresh = await refreshTokenIfNeeded(account);
 
-  // Nombre del carousel + hashtags (o solo nombre si no hay hashtags)
-  const caption = description
-    ? `${title}\n${description}`.slice(0, 2200)
-    : title.slice(0, 2200);
-
   const endpoint = `${TIKTOK_API}/post/publish/content/init/`;
+  // MEDIA_UPLOAD (draft inbox) does NOT accept post_info — TikTok rejects it
   const requestBody = {
-    "post_info": {
-        "description": description, //post caption (title + hashtags)
-    },
     source_info: {
       source: "PULL_FROM_URL",
       photo_cover_index: 0,

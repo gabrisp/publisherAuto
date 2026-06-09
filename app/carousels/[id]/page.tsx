@@ -260,7 +260,7 @@ export default function CarouselDetailPage() {
           )}
 
           <a href={`/api/carousels/${carousel.id}/download`}
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors px-1 py-1">
+            className="hidden md:block text-xs text-muted-foreground hover:text-foreground transition-colors px-1 py-1">
             ZIP
           </a>
         </div>
@@ -358,7 +358,7 @@ export default function CarouselDetailPage() {
               const texts = parseTexts(slide.texts);
               const content = texts.map((t) => t.content).join("\n");
               return (
-                <div key={slide.id} className="rounded-lg border bg-muted/30 p-3">
+                <div key={slide.id} className="rounded-lg border bg-muted/30 p-3 cursor-pointer active:bg-muted/60 transition-colors" onClick={() => copySlideText(slide)}>
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-primary">
                       SLIDE {slide.order + 1}
@@ -366,8 +366,8 @@ export default function CarouselDetailPage() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="h-5 text-[10px] px-1.5"
-                      onClick={() => copySlideText(slide)}
+                      className="h-5 text-[10px] px-1.5 hidden md:inline-flex"
+                      onClick={(e) => { e.stopPropagation(); copySlideText(slide); }}
                     >
                       <Copy className="h-2.5 w-2.5 mr-0.5" />Copiar
                     </Button>

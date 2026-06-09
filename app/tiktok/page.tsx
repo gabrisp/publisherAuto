@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Trash2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 
 function OAuthNotifier() {
   const searchParams = useSearchParams();
@@ -54,7 +55,8 @@ export default function TikTokPage() {
 
       <div className="divide-y rounded-xl border overflow-hidden">
         {accounts.map((acc) => (
-          <div key={acc.id} className="flex items-center gap-3 px-4 py-3 bg-card">
+          <Link key={acc.id} href={`/tiktok/${acc.id}`}
+            className="flex items-center gap-3 px-4 py-3 bg-card hover:bg-muted/40 transition-colors cursor-pointer">
             {acc.avatarUrl ? (
               <img src={acc.avatarUrl} alt={acc.name}
                 className="h-9 w-9 rounded-full object-cover shrink-0" />
@@ -65,12 +67,12 @@ export default function TikTokPage() {
             )}
             <span className="flex-1 font-medium text-sm">@{acc.name}</span>
             <button
-              onClick={() => handleDisconnect(acc.id, acc.name)}
+              onClick={(e) => { e.preventDefault(); handleDisconnect(acc.id, acc.name); }}
               className="text-muted-foreground hover:text-destructive transition-colors p-1.5 rounded-lg hover:bg-destructive/10"
             >
               <Trash2 className="h-4 w-4" />
             </button>
-          </div>
+          </Link>
         ))}
         {accounts.length === 0 && (
           <p className="text-sm text-muted-foreground px-4 py-8 text-center">

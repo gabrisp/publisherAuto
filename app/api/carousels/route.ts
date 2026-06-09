@@ -1,12 +1,23 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { carousels, carouselSlides, apps, influencers, images, tiktokAccounts } from "@/db/schema";
-import { eq, count } from "drizzle-orm";
+import { and, eq, count } from "drizzle-orm";
 import { processBatchJson } from "@/lib/carousel-generator";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const listOnly = searchParams.get("list") === "1"; // skip slides payload when not needed
+
+  // Optional entity filters
+  const appId = searchParams.get("appId");
+  const influencerId = searchParams.get("influencerId");
+  const sentToAccountId = searchParams.get("sentToAccountId");
+  const conditions = [
+    appId ? eq(carousels.appId, appId) : undefined,
+    influencerId ? eq(carousels.influencerId, influencerId) : undefined,
+    sentToAccountId ? eq(carousels.sentToAccountId, sentToAccountId) : undefined,
+  ].filter((c): c is NonNullable<typeof c> => c !== undefined);
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
   // 3 flat queries — no N+1
   const [rows, counts, allSlides] = await Promise.all([
@@ -31,6 +42,7 @@ export async function GET(req: Request) {
       .leftJoin(apps, eq(carousels.appId, apps.id))
       .leftJoin(influencers, eq(carousels.influencerId, influencers.id))
       .leftJoin(tiktokAccounts, eq(carousels.sentToAccountId, tiktokAccounts.id))
+      .where(whereClause)
       .orderBy(carousels.createdAt),
 
     db
