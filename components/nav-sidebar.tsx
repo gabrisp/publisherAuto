@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -11,9 +11,11 @@ import {
   Music2,
   Film,
   Hash,
+  LogOut,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Sun, Moon } from "lucide-react";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
 
 const links = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -43,6 +45,14 @@ function SidebarThemeToggle() {
 
 export function NavSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  async function handleLogout() {
+    const supabase = getSupabaseBrowser();
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  }
 
   return (
     <aside className="hidden md:flex h-screen w-56 flex-col border-r bg-background">
@@ -67,6 +77,15 @@ export function NavSidebar() {
         ))}
       </nav>
       <SidebarThemeToggle />
+      <div className="border-t p-3">
+        <button
+          onClick={handleLogout}
+          className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <LogOut className="h-4 w-4" />
+          Cerrar sesión
+        </button>
+      </div>
     </aside>
   );
 }
