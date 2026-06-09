@@ -45,7 +45,6 @@ function SidebarThemeToggle() {
 
 export function NavSidebar() {
   const pathname = usePathname();
-  const router = useRouter();
 
   async function handleLogout() {
     const supabase = getSupabaseBrowser();
