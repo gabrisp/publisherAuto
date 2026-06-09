@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -50,8 +50,7 @@ export function NavSidebar() {
   async function handleLogout() {
     const supabase = getSupabaseBrowser();
     await supabase.auth.signOut();
-    router.push("/login");
-    router.refresh();
+    window.location.replace("/login");
   }
 
   return (

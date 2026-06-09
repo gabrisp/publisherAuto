@@ -1,11 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -26,8 +24,9 @@ export default function LoginPage() {
       setError("Email o contraseña incorrectos.");
       setLoading(false);
     } else {
-      router.push("/");
-      router.refresh();
+      // window.location.replace mantiene el contexto PWA en iOS —
+      // router.refresh() causa un reload que rompe el modo standalone
+      window.location.replace("/");
     }
   }
 

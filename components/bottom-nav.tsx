@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { Film, ImageIcon, Music2, LayoutDashboard, LogOut } from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 
@@ -19,8 +19,7 @@ export function BottomNav() {
   async function handleLogout() {
     const supabase = getSupabaseBrowser();
     await supabase.auth.signOut();
-    router.push("/login");
-    router.refresh();
+    window.location.replace("/login");
   }
 
   return (
