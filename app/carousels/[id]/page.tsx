@@ -51,7 +51,7 @@ type CarouselDetail = {
   slides: Slide[];
 };
 
-type PickerImage = { id: string; path: string; tag: string; originalName: string };
+type PickerImage = { id: string; path: string; tag: string; originalName: string; scope: string };
 type TikTokAccount = { id: string; name: string };
 
 /* ── Helpers ─────────────────────────────────────────────────────────── */
@@ -88,6 +88,8 @@ export default function CarouselDetailPage() {
   const [pickerLoading, setPickerLoading] = useState(false);
   const [pickerTagFilter, setPickerTagFilter] = useState<string[]>([]);
   const [pickerAvailTags, setPickerAvailTags] = useState<string[]>([]);
+  const [pickerSearch, setPickerSearch] = useState("");
+  const [pickerScope, setPickerScope] = useState<"all" | "global" | "app" | "influencer">("all");
   const [changingImage, setChangingImage] = useState(false);
 
   // Acciones
@@ -99,6 +101,8 @@ export default function CarouselDetailPage() {
   async function openPicker(slideId: string) {
     setPickerSlideId(slideId);
     setPickerTagFilter([]);
+    setPickerSearch("");
+    setPickerScope("all");
     setPickerLoading(true);
     const imgs: PickerImage[] = await fetch("/api/images").then((r) => r.json());
     setPickerImages(imgs);
@@ -263,12 +267,15 @@ export default function CarouselDetailPage() {
     : null;
 
   // Filtered picker images
-  const displayPickerImages =
-    pickerTagFilter.length === 0
-      ? pickerImages
-      : pickerImages.filter((img) =>
-          pickerTagFilter.every((t) => parseTags(img.tag).includes(t))
-        );
+  const displayPickerImages = pickerImages.filter((img) => {
+    if (pickerScope !== "all" && img.scope !== pickerScope) return false;
+    if (pickerTagFilter.length > 0 && !pickerTagFilter.every((t) => parseTags(img.tag).includes(t))) return false;
+    if (pickerSearch) {
+      const q = pickerSearch.toLowerCase();
+      if (!img.tag.toLowerCase().includes(q) && !img.originalName.toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
 
   return (
     <div className="space-y-5">
@@ -460,7 +467,7 @@ export default function CarouselDetailPage() {
             className="bg-background rounded-2xl border shadow-xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header + tag chips — fijos, no scrollean */}
+            {/* Header + filtros — fijos, no scrollean */}
             <div className="border-b">
               <div className="flex items-center justify-between px-4 py-3">
                 <h3 className="font-semibold">Seleccionar imagen</h3>
@@ -471,6 +478,36 @@ export default function CarouselDetailPage() {
                   <X className="h-4 w-4" />
                 </button>
               </div>
+
+              {/* Search */}
+              <div className="px-4 pb-3">
+                <input
+                  type="text"
+                  placeholder="Buscar por tag o nombre…"
+                  value={pickerSearch}
+                  onChange={(e) => setPickerSearch(e.target.value)}
+                  className="w-full h-8 rounded-lg border bg-muted/40 px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+
+              {/* Scope pills */}
+              <div className="flex gap-1.5 px-4 pb-3">
+                {(["all", "global", "app", "influencer"] as const).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setPickerScope(s)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                      pickerScope === s
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-muted text-muted-foreground border-transparent hover:border-muted-foreground/30"
+                    }`}
+                  >
+                    {s === "all" ? "Todos" : s === "global" ? "Global" : s === "app" ? "App" : "Influencer"}
+                  </button>
+                ))}
+              </div>
+
+              {/* Tag chips del slide actual */}
               {pickerAvailTags.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 px-4 pb-3">
                   {pickerAvailTags.map((tag) => (
