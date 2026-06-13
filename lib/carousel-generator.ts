@@ -24,6 +24,9 @@ type SlideJson = {
 
 type CarouselJson = {
   name: string;
+  videoTitle?: string;
+  description?: string;
+  hashtags?: string[];
   app: string;
   influencer: string;
   slides: SlideJson[];
@@ -64,6 +67,9 @@ async function processCarouselJson(
     appId: app?.id ?? null,
     influencerId: influencer?.id ?? null,
     status: "draft",
+    videoTitle: c.videoTitle ?? null,
+    videoDescription: c.description ?? null,
+    videoHashtags: c.hashtags ? JSON.stringify(c.hashtags) : null,
     jsonSource: rawJson,
     zipPath: null,
     createdAt: ts,

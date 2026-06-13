@@ -56,24 +56,36 @@ export async function POST(
       if (slide.imagePath) imageUrls.push(slide.imagePath);
     }
 
-    // 3. Hashtags como description — usa nombre del carousel si no hay hashtags
-    let description: string = carousel.name;
-    try {
-      const hashtagRows = await db.select().from(hashtags).orderBy(hashtags.createdAt);
-      if (hashtagRows.length > 0) {
-        const shuffled = [...hashtagRows].sort(() => Math.random() - 0.5).slice(0, 5);
-        description = shuffled.map((h) => `#${h.tag}`).join(" ");
+    // 3. Título y description para TikTok
+    const tiktokTitle = carousel.videoTitle ?? carousel.name;
+
+    let tiktokDescription: string = tiktokTitle;
+    if (carousel.videoDescription) {
+      const hashtagStr = carousel.videoHashtags
+        ? (JSON.parse(carousel.videoHashtags) as string[]).map((h) => `#${h}`).join(" ")
+        : "";
+      tiktokDescription = hashtagStr
+        ? `${carousel.videoDescription}\n${hashtagStr}`
+        : carousel.videoDescription;
+    } else {
+      // Legacy: hashtags aleatorios de la tabla global
+      try {
+        const hashtagRows = await db.select().from(hashtags).orderBy(hashtags.createdAt);
+        if (hashtagRows.length > 0) {
+          const shuffled = [...hashtagRows].sort(() => Math.random() - 0.5).slice(0, 5);
+          tiktokDescription = shuffled.map((h) => `#${h.tag}`).join(" ");
+        }
+      } catch {
+        // tabla hashtags no existe o query falla — usar nombre del carousel
       }
-    } catch {
-      // tabla hashtags no existe o query falla — usar nombre del carousel
     }
 
     // 4. Subir a TikTok
     const { publishId, debug } = await uploadCarouselAsDraft(
       account,
       imageUrls,
-      carousel.name,
-      description
+      tiktokTitle,
+      tiktokDescription
     );
 
     // Guardar cuenta y fecha de envío

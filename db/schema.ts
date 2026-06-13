@@ -42,6 +42,9 @@ export const carousels = pgTable("carousels", {
   }),
   status: text("status").notNull().default("draft"),
   renderText: integer("render_text").notNull().default(1),
+  videoTitle: text("video_title"),
+  videoDescription: text("video_description"),
+  videoHashtags: text("video_hashtags"), // JSON array string, e.g. '["gymtok","musclegrowth",...]'
   jsonSource: text("json_source"),
   zipPath: text("zip_path"),
   // TikTok draft info

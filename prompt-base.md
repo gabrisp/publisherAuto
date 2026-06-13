@@ -48,6 +48,9 @@ Para cada idea/hook de arriba, crea un carousel completo en JSON. Desarrolla el 
   "carousels": [
     {
       "name": "Nombre descriptivo del carousel",
+      "videoTitle": "Hook de hasta 90 caracteres para el caption de TikTok",
+      "description": "Descripción larga del video (2–5 frases). Contexto, gancho emocional, por qué ver el carousel.",
+      "hashtags": ["hashtag1", "hashtag2", "hashtag3", "hashtag4", "hashtag5"],
       "app": "creatinely",
       "influencer": "justin",
       "slides": [
@@ -79,6 +82,14 @@ Para cada idea/hook de arriba, crea un carousel completo en JSON. Desarrolla el 
 ```
 
 Un JSON puede contener **varios carousels a la vez** en el array `carousels`.
+
+---
+
+### Campos de caption para TikTok
+
+- **`videoTitle`**: Hook de TikTok, **máximo 90 caracteres**. Primera frase del caption, estilo curiosidad/tensión (ej: *"Many people think they don't grow because of genetics…"*). **NO** es el nombre interno del carousel — es lo que ve el espectador antes de hacer clic en "más".
+- **`description`**: Descripción del video, 2–5 frases. Amplía el hook, da contexto, no repite el título. Puede terminar con una llamada a la acción suave.
+- **`hashtags`**: Array de exactamente **5 strings sin `#`**, relevantes al tema del carousel (no genéricos de relleno).
 
 ---
 
@@ -143,6 +154,9 @@ El canvas es **1080 × 1920 px**.
   "carousels": [
     {
       "name": "Justin — 5 cosas que hacen crecer tus bíceps",
+      "videoTitle": "Most guys never grow their biceps because of this mistake",
+      "description": "I trained arms for 3 years without seeing real growth. Turns out I was making the same 5 mistakes over and over. These are the exact fixes that finally moved the needle — save this for your next arm day.",
+      "hashtags": ["armday", "bicepsworkout", "musclebuilding", "gymtok", "naturalbodybuilding"],
       "app": "creatinely",
       "influencer": "justin",
       "slides": [
