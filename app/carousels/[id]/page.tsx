@@ -289,15 +289,6 @@ export default function CarouselDetailPage() {
 
           {isPending && (
             <>
-              <label className="flex items-center gap-1.5 text-xs text-muted-foreground select-none cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={includeIdSlide}
-                  onChange={(e) => setIncludeIdSlide(e.target.checked)}
-                  className="rounded"
-                />
-                ID slide
-              </label>
               {accounts.length > 0 ? (
                 <DropdownMenu>
                   {/* @ts-expect-error radix asChild */}
@@ -354,16 +345,8 @@ export default function CarouselDetailPage() {
         </p>
       </div>
 
-      {/* ── ShortId + ID slide ── */}
+      {/* ── ShortId ── */}
       <div className="flex items-center gap-6 p-5 rounded-2xl border bg-muted/20">
-        {idSlideUrl && (
-          <img
-            src={idSlideUrl}
-            alt="ID slide"
-            className="shrink-0 w-16 rounded-lg border shadow-sm"
-            style={{ aspectRatio: "9/16", objectFit: "cover" }}
-          />
-        )}
         <div className="flex flex-col gap-1 min-w-0">
           <span className="text-[11px] uppercase tracking-widest text-muted-foreground font-semibold">
             ID del carousel
