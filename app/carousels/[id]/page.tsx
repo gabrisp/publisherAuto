@@ -17,6 +17,7 @@ import {
   Trash2,
   X,
   ImageIcon,
+  Share2,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -93,6 +94,7 @@ export default function CarouselDetailPage() {
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [includeIdSlide, setIncludeIdSlide] = useState(true);
+  const [sharing, setSharing] = useState(false);
 
   async function openPicker(slideId: string) {
     setPickerSlideId(slideId);
@@ -168,6 +170,63 @@ export default function CarouselDetailPage() {
     } catch {
       toast.error("Error al eliminar");
       setDeleting(false);
+    }
+  }
+
+  // Re-encode via canvas: changes JPEG binary (new DCT coefficients) + 1px corner
+  // noise so TikTok doesn't flag it as duplicate content. Visually identical.
+  function reencodeImage(blob: Blob): Promise<Blob> {
+    return new Promise((resolve) => {
+      const img = new Image();
+      const url = URL.createObjectURL(blob);
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { URL.revokeObjectURL(url); resolve(blob); return; }
+        ctx.drawImage(img, 0, 0);
+        const px = ctx.getImageData(0, 0, 1, 1);
+        px.data[0] = Math.max(0, Math.min(255, px.data[0] + (Math.random() > 0.5 ? 1 : -1)));
+        ctx.putImageData(px, 0, 0);
+        canvas.toBlob((b) => { URL.revokeObjectURL(url); resolve(b ?? blob); }, "image/jpeg", 0.95);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); resolve(blob); };
+      img.crossOrigin = "anonymous";
+      img.src = url;
+    });
+  }
+
+  async function handleShareSlides() {
+    if (!carousel || sharing) return;
+    setSharing(true);
+    try {
+      const files: File[] = [];
+      for (const slide of carousel.slides) {
+        const url = slide.generatedImagePath ?? slide.imagePath;
+        if (!url) continue;
+        const raw = await fetch(url).then((r) => r.blob());
+        const unique = await reencodeImage(raw);
+        files.push(new File([unique], `slide-${slide.order + 1}.jpg`, { type: "image/jpeg" }));
+      }
+      if (files.length === 0) { toast.error("Sin imágenes"); return; }
+
+      if (typeof navigator.canShare === "function" && navigator.canShare({ files })) {
+        await navigator.share({ files, title: carousel.name });
+      } else {
+        for (const file of files) {
+          const href = URL.createObjectURL(file);
+          const a = document.createElement("a");
+          a.href = href;
+          a.download = file.name;
+          a.click();
+          URL.revokeObjectURL(href);
+        }
+      }
+    } catch (e: unknown) {
+      if ((e as { name?: string })?.name !== "AbortError") toast.error("Error al compartir");
+    } finally {
+      setSharing(false);
     }
   }
 
@@ -319,7 +378,19 @@ export default function CarouselDetailPage() {
       <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
         {/* Slides */}
         <div className="md:col-span-2 space-y-3">
-          <h2 className="text-sm font-semibold">Slides · {carousel.slides.length}</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold">Slides · {carousel.slides.length}</h2>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs"
+              onClick={handleShareSlides}
+              disabled={sharing}
+            >
+              <Share2 className="h-3 w-3 mr-1" />
+              {sharing ? "Cargando…" : "Guardar fotos"}
+            </Button>
+          </div>
           <div className="grid grid-cols-4 gap-2">
             {carousel.slides.map((slide) => {
               const src = slide.generatedImagePath ?? slide.imagePath;
