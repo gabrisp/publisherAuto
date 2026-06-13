@@ -12,7 +12,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { accountId } = await req.json();
+  const { accountId, includeIdSlide = true } = await req.json();
 
   let [carousel] = await db.select().from(carousels).where(eq(carousels.id, id));
   if (!carousel) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -45,11 +45,13 @@ export async function POST(
   const imageUrls: string[] = [];
 
   try {
-    // 1. ID slide como primera imagen (URL estable en Supabase)
-    const idSlidePath = `generated/idslide_${id}.jpg`;
-    const idSlideBuffer = await generateIdSlide(carousel.shortId!);
-    const idSlideUrl = await uploadFile(idSlidePath, idSlideBuffer, "image/jpeg");
-    imageUrls.push(idSlideUrl);
+    // 1. ID slide como primera imagen (opcional)
+    if (includeIdSlide) {
+      const idSlidePath = `generated/idslide_${id}.jpg`;
+      const idSlideBuffer = await generateIdSlide(carousel.shortId!);
+      const idSlideUrl = await uploadFile(idSlidePath, idSlideBuffer, "image/jpeg");
+      imageUrls.push(idSlideUrl);
+    }
 
     // 2. Imágenes originales directamente (sin ningún procesado)
     for (const slide of slides) {

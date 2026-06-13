@@ -92,6 +92,7 @@ export default function CarouselDetailPage() {
   // Acciones
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [includeIdSlide, setIncludeIdSlide] = useState(true);
 
   async function openPicker(slideId: string) {
     setPickerSlideId(slideId);
@@ -142,7 +143,7 @@ export default function CarouselDetailPage() {
       const res = await fetch(`/api/carousels/${carousel.id}/tiktok`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ accountId }),
+        body: JSON.stringify({ accountId, includeIdSlide }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -229,6 +230,15 @@ export default function CarouselDetailPage() {
 
           {isPending && (
             <>
+              <label className="flex items-center gap-1.5 text-xs text-muted-foreground select-none cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={includeIdSlide}
+                  onChange={(e) => setIncludeIdSlide(e.target.checked)}
+                  className="rounded"
+                />
+                ID slide
+              </label>
               {accounts.length > 0 ? (
                 <DropdownMenu>
                   {/* @ts-expect-error radix asChild */}
