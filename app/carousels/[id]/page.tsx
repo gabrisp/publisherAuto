@@ -42,6 +42,9 @@ type CarouselDetail = {
   name: string;
   shortId: string | null;
   status: string;
+  videoTitle: string | null;
+  videoDescription: string | null;
+  videoHashtags: string | null;
   zipPath: string | null;
   sentAt: number | null;
   createdAt: number;
@@ -413,6 +416,52 @@ export default function CarouselDetailPage() {
 
         {/* Textos */}
         <div className="md:col-span-3 space-y-3">
+          {/* Caption de TikTok */}
+          {(carousel.videoTitle || carousel.videoDescription) && (
+            <div className="space-y-2">
+              <h2 className="text-sm font-semibold">Caption</h2>
+              {carousel.videoTitle && (
+                <div
+                  className="rounded-lg border bg-muted/30 p-3 cursor-pointer active:bg-muted/60 transition-colors"
+                  onClick={() => {
+                    navigator.clipboard.writeText(carousel.videoTitle!);
+                    toast("✓ Título copiado", { duration: 800 });
+                  }}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-primary">Título</span>
+                    <span className="text-[10px] text-muted-foreground">{carousel.videoTitle.length}/90</span>
+                  </div>
+                  <p className="text-sm leading-snug">{carousel.videoTitle}</p>
+                </div>
+              )}
+              {carousel.videoDescription && (
+                <div
+                  className="rounded-lg border bg-muted/30 p-3 cursor-pointer active:bg-muted/60 transition-colors"
+                  onClick={() => {
+                    const hashtags = carousel.videoHashtags
+                      ? (JSON.parse(carousel.videoHashtags) as string[]).map((h) => `#${h}`).join(" ")
+                      : "";
+                    const full = hashtags ? `${carousel.videoDescription}\n${hashtags}` : carousel.videoDescription!;
+                    navigator.clipboard.writeText(full);
+                    toast("✓ Descripción copiada", { duration: 800 });
+                  }}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-primary">Descripción</span>
+                    <Copy className="h-3 w-3 text-muted-foreground" />
+                  </div>
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{carousel.videoDescription}</p>
+                  {carousel.videoHashtags && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      {(JSON.parse(carousel.videoHashtags) as string[]).map((h) => `#${h}`).join(" ")}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold">Textos</h2>
             <Button
