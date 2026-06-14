@@ -19,20 +19,23 @@ export default function AppleIcon() {
       >
         {/* Stacked cards */}
         <div style={{ position: "absolute", top: 101, left: 34, right: 34, height: 63, background: "#c4c4c4", borderRadius: 6 }} />
-        <div style={{ position: "absolute", top: 90, left: 25, right: 25, height: 63, background: "#d4d4d4", borderRadius: 6 }} />
-        <div style={{ position: "absolute", top: 79, left: 15, right: 15, height: 63, background: "#e4e4e4", borderRadius: 6 }} />
+        <div style={{ position: "absolute", top: 90,  left: 25, right: 25, height: 63, background: "#d4d4d4", borderRadius: 6 }} />
+        <div style={{ position: "absolute", top: 79,  left: 15, right: 15, height: 63, background: "#e4e4e4", borderRadius: 6 }} />
+
         {/* Arrow shaft */}
-        <div style={{ position: "absolute", top: 58, left: 81, width: 18, height: 21, background: "#111111", borderRadius: 3 }} />
-        {/* Arrowhead */}
+        <div style={{ position: "absolute", top: 58, left: 81, width: 18, height: 23, background: "#111111", borderRadius: 3 }} />
+
+        {/* Arrowhead — CSS border triangle, centered at x=90 */}
         <div
           style={{
             position: "absolute",
             top: 16,
-            left: 59,
-            width: 62,
-            height: 42,
-            background: "#111111",
-            clipPath: "polygon(50% 0%, 0% 100%, 100% 100%)",
+            left: 90,
+            width: 0,
+            height: 0,
+            borderLeft: "31px solid transparent",
+            borderRight: "31px solid transparent",
+            borderBottom: "42px solid #111111",
           }}
         />
       </div>
