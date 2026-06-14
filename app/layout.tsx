@@ -12,7 +12,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PlataformaAUTO",
+  title: "Publisher",
   description: "TikTok carousel generator platform",
   icons: {
     icon: "/icon.png",
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    title: "AutoPublisher",
+    title: "Publisher",
     statusBarStyle: "default",
   },
 };
