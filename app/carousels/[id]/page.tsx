@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -18,6 +18,8 @@ import {
   X,
   ImageIcon,
   Share2,
+  GripVertical,
+  ArrowUpDown,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -98,8 +100,13 @@ export default function CarouselDetailPage() {
   // Acciones
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [includeIdSlide, setIncludeIdSlide] = useState(true);
   const [sharing, setSharing] = useState(false);
+
+  // Reorder modal
+  const [reorderOpen, setReorderOpen] = useState(false);
+  const [reorderSlides, setReorderSlides] = useState<Slide[]>([]);
+  const [reorderSaving, setReorderSaving] = useState(false);
+  const dragIndex = useRef<number | null>(null);
 
   async function openPicker(slideId: string) {
     setPickerSlideId(slideId);
@@ -152,7 +159,7 @@ export default function CarouselDetailPage() {
       const res = await fetch(`/api/carousels/${carousel.id}/tiktok`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ accountId, includeIdSlide }),
+        body: JSON.stringify({ accountId }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -219,6 +226,64 @@ export default function CarouselDetailPage() {
       if ((e as { name?: string })?.name !== "AbortError") toast.error("Error al compartir");
     } finally {
       setSharing(false);
+    }
+  }
+
+  function openReorder() {
+    setReorderSlides([...carousel!.slides].sort((a, b) => a.order - b.order));
+    setReorderOpen(true);
+  }
+
+  function onDragStart(i: number) {
+    dragIndex.current = i;
+  }
+
+  function onDragOver(e: React.DragEvent, i: number) {
+    e.preventDefault();
+    if (dragIndex.current === null || dragIndex.current === i) return;
+    const next = [...reorderSlides];
+    const [moved] = next.splice(dragIndex.current, 1);
+    next.splice(i, 0, moved);
+    dragIndex.current = i;
+    setReorderSlides(next);
+  }
+
+  // Renumbers leading "N. " / "N) " patterns across all slides in new order.
+  // Only increments counter for slides that actually have a numbered text.
+  function renumberTexts(slides: Slide[]): Slide[] {
+    let n = 1;
+    return slides.map((slide) => {
+      let raw: Array<Record<string, unknown>> = [];
+      try { raw = JSON.parse(slide.texts); } catch { return slide; }
+      let found = false;
+      const updated = raw.map((t) => {
+        const content = typeof t.content === "string" ? t.content : "";
+        const m = content.match(/^(\d+)([.)]\s)([\s\S]*)$/);
+        if (m) { found = true; return { ...t, content: `${n}${m[2]}${m[3]}` }; }
+        return t;
+      });
+      if (found) n++;
+      return { ...slide, texts: JSON.stringify(updated) };
+    });
+  }
+
+  async function saveReorder() {
+    if (!carousel) return;
+    setReorderSaving(true);
+    try {
+      const renumbered = renumberTexts(reorderSlides);
+      await fetch(`/api/carousels/${carousel.id}/slides/reorder`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(renumbered.map((s, i) => ({ id: s.id, order: i, texts: s.texts }))),
+      });
+      await mutate();
+      setReorderOpen(false);
+      toast.success("Orden guardado");
+    } catch {
+      toast.error("Error al guardar");
+    } finally {
+      setReorderSaving(false);
     }
   }
 
@@ -358,16 +423,16 @@ export default function CarouselDetailPage() {
         <div className="md:col-span-2 space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold">Slides · {carousel.slides.length}</h2>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs"
-              onClick={handleShareSlides}
-              disabled={sharing}
-            >
-              <Share2 className="h-3 w-3 mr-1" />
-              {sharing ? "Cargando…" : "Guardar fotos"}
-            </Button>
+            <div className="flex gap-1.5">
+              {isPending && (
+                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={openReorder}>
+                  <ArrowUpDown className="h-3 w-3 mr-1" />Ordenar
+                </Button>
+              )}
+              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={handleShareSlides} disabled={sharing}>
+                <Share2 className="h-3 w-3 mr-1" />{sharing ? "Cargando…" : "Guardar fotos"}
+              </Button>
+            </div>
           </div>
           <div className="grid grid-cols-4 gap-2">
             {carousel.slides.map((slide) => {
@@ -607,6 +672,66 @@ export default function CarouselDetailPage() {
                   </div>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Reorder modal ── */}
+      {reorderOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+          onClick={() => setReorderOpen(false)}
+        >
+          <div
+            className="bg-background rounded-2xl border shadow-xl w-full max-w-sm flex flex-col max-h-[80vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b">
+              <h3 className="font-semibold">Reorganizar slides</h3>
+              <button onClick={() => setReorderOpen(false)} className="text-muted-foreground hover:text-foreground">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto p-3 space-y-2 flex-1">
+              {reorderSlides.map((slide, i) => {
+                const src = slide.generatedImagePath ?? slide.imagePath;
+                const firstText = parseTexts(slide.texts)[0]?.content ?? "";
+                return (
+                  <div
+                    key={slide.id}
+                    draggable
+                    onDragStart={() => onDragStart(i)}
+                    onDragOver={(e) => onDragOver(e, i)}
+                    onDragEnd={() => { dragIndex.current = null; }}
+                    className="flex items-center gap-3 p-2 rounded-lg border bg-muted/20 cursor-grab active:cursor-grabbing select-none"
+                  >
+                    <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
+                    {src && (
+                      <img
+                        src={src}
+                        alt={`Slide ${i + 1}`}
+                        className="h-14 rounded shrink-0 object-cover"
+                        style={{ aspectRatio: "9/16" }}
+                      />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <span className="text-[11px] font-bold text-muted-foreground">{i + 1}</span>
+                      <p className="text-sm truncate leading-snug">{firstText || "(sin texto)"}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex gap-2 p-3 border-t">
+              <Button variant="outline" className="flex-1" onClick={() => setReorderOpen(false)}>
+                Cancelar
+              </Button>
+              <Button className="flex-1" disabled={reorderSaving} onClick={saveReorder}>
+                {reorderSaving ? "Guardando…" : "Guardar orden"}
+              </Button>
             </div>
           </div>
         </div>
