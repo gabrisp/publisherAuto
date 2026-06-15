@@ -7,7 +7,7 @@ import {
   Search, X, LayoutGrid, List, Trash2, CheckSquare, Plus,
   FileJson, ClipboardPaste, Folder, FolderOpen, MoreHorizontal,
   ChevronRight, Copy, MoveRight, Pencil, FolderInput, Archive,
-  ArchiveRestore, Calendar,
+  ArchiveRestore, Calendar, ArrowUpDown,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -45,7 +45,8 @@ type FolderRecord = {
   carouselCount: number;
 };
 
-type FilterVal = "all" | "pending" | "sent";
+type FilterVal = "all" | "pending" | "drafted" | "published";
+type SortBy = "created" | "scheduled";
 type ViewMode = "grid" | "row";
 
 type ContextMenu = {
@@ -72,7 +73,8 @@ export default function CarouselsPage() {
 
   /* filter / view */
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<FilterVal>("pending");
+  const [filter, setFilter] = useState<FilterVal>("all");
+  const [sortBy, setSortBy] = useState<SortBy>("created");
   const [filterApp, setFilterApp] = useState("");
   const [filterInfluencer, setFilterInfluencer] = useState("");
   const [view, setView] = useState<ViewMode>("grid");
@@ -319,8 +321,9 @@ export default function CarouselsPage() {
   /* ── Filters ── */
   const counts = useMemo(() => ({
     all: all.length,
-    pending: all.filter((c) => !c.sentAt).length,
-    sent: all.filter((c) => !!c.sentAt).length,
+    pending: all.filter((c) => !c.sentAt && !c.publishedAt).length,
+    drafted: all.filter((c) => !!c.sentAt && !c.publishedAt).length,
+    published: all.filter((c) => !!c.publishedAt).length,
   }), [all]);
 
   const appOptions = useMemo(() =>
@@ -331,8 +334,9 @@ export default function CarouselsPage() {
   const filtered = useMemo(() => {
     let rows = all;
     if (activeFolder) rows = rows.filter((c) => c.folderId === activeFolder);
-    if (filter === "pending") rows = rows.filter((c) => !c.sentAt);
-    if (filter === "sent") rows = rows.filter((c) => !!c.sentAt);
+    if (filter === "pending") rows = rows.filter((c) => !c.sentAt && !c.publishedAt);
+    if (filter === "drafted") rows = rows.filter((c) => !!c.sentAt && !c.publishedAt);
+    if (filter === "published") rows = rows.filter((c) => !!c.publishedAt);
     if (filterApp) rows = rows.filter((c) => c.appName === filterApp);
     if (filterInfluencer) rows = rows.filter((c) => c.influencerName === filterInfluencer);
     if (search.trim()) {
@@ -348,6 +352,18 @@ export default function CarouselsPage() {
     return rows;
   }, [all, activeFolder, filter, filterApp, filterInfluencer, search]);
 
+  const sorted = useMemo(() => {
+    if (sortBy === "scheduled") {
+      return [...filtered].sort((a, b) => {
+        if (!a.scheduledDate && !b.scheduledDate) return 0;
+        if (!a.scheduledDate) return 1;
+        if (!b.scheduledDate) return -1;
+        return a.scheduledDate.localeCompare(b.scheduledDate);
+      });
+    }
+    return filtered;
+  }, [filtered, sortBy]);
+
   /* ── Selection ── */
   function toggleSelect(id: string, e: React.MouseEvent) {
     e.stopPropagation();
@@ -358,7 +374,7 @@ export default function CarouselsPage() {
       return next;
     });
   }
-  function selectAll() { setSelected(new Set(filtered.map((c) => c.id))); }
+  function selectAll() { setSelected(new Set(sorted.map((c) => c.id))); }
   function clearSelection() { setSelected(new Set()); }
 
   async function handleBulkDelete() {
@@ -379,7 +395,7 @@ export default function CarouselsPage() {
     });
   }
 
-  const allFilteredSelected = filtered.length > 0 && filtered.every((c) => selected.has(c.id));
+  const allFilteredSelected = sorted.length > 0 && sorted.every((c) => selected.has(c.id));
   const isDragging = !!draggingCarouselId;
 
   return (
@@ -429,18 +445,23 @@ export default function CarouselsPage() {
             )}
           </div>
 
-          <div className="flex gap-1 rounded-lg border p-1 bg-muted/30">
-            {(["pending", "sent", "all"] as FilterVal[]).map((f) => (
+          <div className="flex gap-0.5 rounded-lg border p-1 bg-muted/30 overflow-x-auto shrink-0" style={{ scrollbarWidth: "none" }}>
+            {([
+              ["all", `Todos (${counts.all})`],
+              ["pending", `Sin enviar (${counts.pending})`],
+              ["drafted", `Drafts (${counts.drafted})`],
+              ["published", `Publicados (${counts.published})`],
+            ] as [FilterVal, string][]).map(([f, label]) => (
               <button key={f} onClick={() => setFilter(f)}
-                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
                   filter === f ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
                 }`}>
-                {f === "pending" ? `Pendientes (${counts.pending})` : f === "sent" ? `Enviados (${counts.sent})` : `Todos (${counts.all})`}
+                {label}
               </button>
             ))}
           </div>
 
-          <div className="flex gap-0.5 rounded-lg border p-1 bg-muted/30">
+          <div className="flex gap-0.5 rounded-lg border p-1 bg-muted/30 shrink-0">
             {(["grid", "row"] as ViewMode[]).map((v) => (
               <button key={v} onClick={() => setView(v)} title={v === "grid" ? "Grid" : "Lista"}
                 className={`p-1.5 rounded-md transition-colors ${view === v ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
@@ -448,6 +469,16 @@ export default function CarouselsPage() {
               </button>
             ))}
           </div>
+
+          <button
+            onClick={() => setSortBy((s) => s === "created" ? "scheduled" : "created")}
+            title={sortBy === "created" ? "Ordenar por fecha programada" : "Ordenar por creación"}
+            className={`shrink-0 p-1.5 rounded-lg border transition-colors ${
+              sortBy === "scheduled" ? "bg-primary text-primary-foreground border-primary" : "bg-muted/30 text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <ArrowUpDown className="h-3.5 w-3.5" />
+          </button>
         </div>
 
         {/* Secondary filters */}
@@ -569,7 +600,7 @@ export default function CarouselsPage() {
       </div>
 
       {/* Grid / List */}
-      {filtered.length === 0 ? (
+      {sorted.length === 0 ? (
         <p className="text-sm text-muted-foreground py-16 text-center">
           {search
             ? `Sin resultados para "${search}".`
@@ -581,9 +612,12 @@ export default function CarouselsPage() {
         </p>
       ) : (
         <div className="flex flex-col gap-6">
-          {(activeFolder ? groupByDate(filtered) : [{ date: null as string | null, items: filtered }]).map(({ date, items }) => (
+          {(() => {
+            const shouldGroup = !!activeFolder || sortBy === "scheduled";
+            const groups = shouldGroup ? groupByDate(sorted) : [{ date: null as string | null, items: sorted }];
+            return groups.map(({ date, items }) => (
             <div key={date ?? "__nodate"} className="flex flex-col gap-3">
-              {activeFolder && (
+              {(activeFolder || sortBy === "scheduled") && (
                 <div className="flex items-center gap-3">
                   <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider shrink-0">
                     {date ? fmtDateHeader(date) : "Sin fecha"}
@@ -625,7 +659,8 @@ export default function CarouselsPage() {
                 </div>
               )}
             </div>
-          ))}
+          ));
+          })()}
         </div>
       )}
 
