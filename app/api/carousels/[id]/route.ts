@@ -67,6 +67,7 @@ export async function PATCH(
   if ("folderId" in body) patch.folderId = body.folderId ?? null;
   if ("name" in body) patch.name = body.name;
   if ("archivedAt" in body) patch.archivedAt = body.archivedAt ?? null;
+  if ("sentAt" in body) patch.sentAt = body.sentAt ?? null;
   if ("scheduledDate" in body) patch.scheduledDate = body.scheduledDate ?? null;
   if ("publishedAt" in body) patch.publishedAt = body.publishedAt ?? null;
   if ("stats" in body) patch.stats = body.stats ? JSON.stringify(body.stats) : null;

@@ -358,6 +358,13 @@ export default function CarouselDetailPage() {
     await patchCarousel({ scheduledDate: date });
   }
 
+  async function toggleDraft() {
+    if (!carousel) return;
+    const sentAt = carousel.sentAt ? null : Math.floor(Date.now() / 1000);
+    await patchCarousel({ sentAt });
+    toast(sentAt ? "Marcado como draft" : "Quitado de draft", { duration: 1500 });
+  }
+
   async function togglePublished() {
     if (!carousel) return;
     const publishedAt = carousel.publishedAt ? null : Math.floor(Date.now() / 1000);
@@ -621,27 +628,55 @@ export default function CarouselDetailPage() {
       {/* ── Stats tab (desktop only) ── */}
       <div className={activeTab !== "stats" ? "hidden" : "hidden md:block"}>
         <div className="max-w-md space-y-6">
-          {/* Published toggle */}
-          <div className="flex items-center justify-between p-4 rounded-xl border bg-muted/20">
-            <div>
-              <p className="text-sm font-semibold">Estado de publicación</p>
-              {carousel.publishedAt && (
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Publicado el {new Date(carousel.publishedAt * 1000).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })}
-                </p>
-              )}
+          {/* Draft + Published toggles */}
+          <div className="space-y-2">
+            {/* Draft */}
+            {!carousel.publishedAt && (
+              <div className="flex items-center justify-between p-4 rounded-xl border bg-muted/20">
+                <div>
+                  <p className="text-sm font-semibold">Draft</p>
+                  {carousel.sentAt && (
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Subido el {new Date(carousel.sentAt * 1000).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })}
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={toggleDraft}
+                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    carousel.sentAt
+                      ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 hover:bg-amber-500/25"
+                      : "bg-muted hover:bg-muted/70 text-muted-foreground"
+                  }`}
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  {carousel.sentAt ? "Draft" : "Marcar draft"}
+                </button>
+              </div>
+            )}
+
+            {/* Published */}
+            <div className="flex items-center justify-between p-4 rounded-xl border bg-muted/20">
+              <div>
+                <p className="text-sm font-semibold">Publicado</p>
+                {carousel.publishedAt && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Publicado el {new Date(carousel.publishedAt * 1000).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={togglePublished}
+                className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  carousel.publishedAt
+                    ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 hover:bg-purple-500/25"
+                    : "bg-muted hover:bg-muted/70 text-muted-foreground"
+                }`}
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                {carousel.publishedAt ? "Publicado" : "Marcar publicado"}
+              </button>
             </div>
-            <button
-              onClick={togglePublished}
-              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
-                carousel.publishedAt
-                  ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 hover:bg-purple-500/25"
-                  : "bg-muted hover:bg-muted/70 text-muted-foreground"
-              }`}
-            >
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              {carousel.publishedAt ? "Publicado" : "Marcar publicado"}
-            </button>
           </div>
 
           {/* Stats form */}

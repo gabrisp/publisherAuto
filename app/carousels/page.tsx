@@ -240,6 +240,18 @@ export default function CarouselsPage() {
     mutateFolders();
   }
 
+  /* ── Draft ── */
+  async function toggleDraft(carouselId: string, markAsDraft: boolean) {
+    setContextMenu(null);
+    const sentAt = markAsDraft ? Math.floor(Date.now() / 1000) : null;
+    mutate((prev) => prev?.map((c) => c.id === carouselId ? { ...c, sentAt } : c), false);
+    await fetch(`/api/carousels/${carouselId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sentAt }),
+    });
+  }
+
   /* ── Archive ── */
   async function setArchived(carouselId: string, archive: boolean) {
     setContextMenu(null);
@@ -746,6 +758,28 @@ export default function CarouselsPage() {
                 </button>
               )}
               <div className="border-t my-1" />
+              {(() => {
+                const c = all.find((c) => c.id === contextMenu.carouselId);
+                return c && !c.publishedAt ? (
+                  c.sentAt ? (
+                    <button
+                      className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-muted/60"
+                      onClick={(e) => { e.stopPropagation(); toggleDraft(contextMenu.carouselId, false); }}
+                    >
+                      <ArchiveRestore className="h-3.5 w-3.5" />
+                      Quitar draft
+                    </button>
+                  ) : (
+                    <button
+                      className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-muted/60"
+                      onClick={(e) => { e.stopPropagation(); toggleDraft(contextMenu.carouselId, true); }}
+                    >
+                      <FileJson className="h-3.5 w-3.5" />
+                      Marcar como draft
+                    </button>
+                  )
+                ) : null;
+              })()}
               {showArchived ? (
                 <button
                   className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-muted/60"
