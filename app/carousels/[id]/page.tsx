@@ -20,6 +20,8 @@ import {
   Share2,
   GripVertical,
   ArrowUpDown,
+  Pencil,
+  Check,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -96,6 +98,11 @@ export default function CarouselDetailPage() {
   const [pickerSearch, setPickerSearch] = useState("");
   const [pickerScope, setPickerScope] = useState<"all" | "global" | "app" | "influencer">("all");
   const [changingImage, setChangingImage] = useState(false);
+
+  // Text editing
+  const [editingSlideId, setEditingSlideId] = useState<string | null>(null);
+  const [editingTexts, setEditingTexts] = useState<TextEl[]>([]);
+  const [savingText, setSavingText] = useState(false);
 
   // Acciones
   const [uploading, setUploading] = useState(false);
@@ -301,6 +308,25 @@ export default function CarouselDetailPage() {
     );
     navigator.clipboard.writeText(parts.join("\n\n"));
     toast("✓ Copiado todo", { duration: 800 });
+  }
+
+  async function saveSlideTexts() {
+    if (!carousel || !editingSlideId) return;
+    setSavingText(true);
+    try {
+      await fetch(`/api/carousels/${carousel.id}/slides/${editingSlideId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ texts: editingTexts }),
+      });
+      await mutate();
+      setEditingSlideId(null);
+      toast.success("Texto guardado");
+    } catch {
+      toast.error("Error al guardar");
+    } finally {
+      setSavingText(false);
+    }
   }
 
   /* ── Loading ── */
@@ -527,22 +553,79 @@ export default function CarouselDetailPage() {
             {carousel.slides.map((slide) => {
               const texts = parseTexts(slide.texts);
               const content = texts.map((t) => t.content).join("\n");
+              const isEditing = editingSlideId === slide.id;
               return (
-                <div key={slide.id} className="rounded-lg border bg-muted/30 p-3 cursor-pointer active:bg-muted/60 transition-colors" onClick={() => copySlideText(slide)}>
+                <div
+                  key={slide.id}
+                  className={`rounded-lg border bg-muted/30 p-3 transition-colors ${isEditing ? "" : "cursor-pointer active:bg-muted/60"}`}
+                  onClick={isEditing ? undefined : () => copySlideText(slide)}
+                >
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-primary">
                       SLIDE {slide.order + 1}
                     </span>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-5 text-[10px] px-1.5 hidden md:inline-flex"
-                      onClick={(e) => { e.stopPropagation(); copySlideText(slide); }}
-                    >
-                      <Copy className="h-2.5 w-2.5 mr-0.5" />Copiar
-                    </Button>
+                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                      {isEditing ? (
+                        <>
+                          <button
+                            disabled={savingText}
+                            onClick={saveSlideTexts}
+                            className="flex items-center gap-1 h-6 px-2 rounded-md text-[10px] font-medium bg-primary text-primary-foreground disabled:opacity-50"
+                          >
+                            <Check className="h-2.5 w-2.5" />
+                            {savingText ? "…" : "Guardar"}
+                          </button>
+                          <button
+                            onClick={() => setEditingSlideId(null)}
+                            className="h-6 px-1.5 rounded-md text-[10px] text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-5 text-[10px] px-1.5 hidden md:inline-flex"
+                            onClick={() => copySlideText(slide)}
+                          >
+                            <Copy className="h-2.5 w-2.5 mr-0.5" />Copiar
+                          </Button>
+                          <button
+                            onClick={() => {
+                              setEditingSlideId(slide.id);
+                              setEditingTexts(texts.length > 0 ? texts : [{ id: "t0", content: "" }]);
+                            }}
+                            className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                          >
+                            <Pencil className="h-2.5 w-2.5" />
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
-                  {content.trim() ? (
+
+                  {isEditing ? (
+                    <div className="space-y-1.5">
+                      {editingTexts.map((t, i) => (
+                        <textarea
+                          key={t.id}
+                          value={t.content}
+                          autoFocus={i === 0}
+                          rows={Math.max(2, t.content.split("\n").length)}
+                          onChange={(e) => setEditingTexts((prev) =>
+                            prev.map((el) => el.id === t.id ? { ...el, content: e.target.value } : el)
+                          )}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) saveSlideTexts();
+                            if (e.key === "Escape") setEditingSlideId(null);
+                          }}
+                          className="w-full rounded-md border bg-background px-2.5 py-1.5 text-sm font-sans leading-relaxed resize-none focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                      ))}
+                    </div>
+                  ) : content.trim() ? (
                     <pre className="text-sm whitespace-pre-wrap font-sans leading-relaxed">
                       {content}
                     </pre>
