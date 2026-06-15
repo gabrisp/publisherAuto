@@ -7,7 +7,7 @@ import {
   Search, X, LayoutGrid, List, Trash2, CheckSquare, Plus,
   FileJson, ClipboardPaste, Folder, FolderOpen, MoreHorizontal,
   ChevronRight, Copy, MoveRight, Pencil, FolderInput, Archive,
-  ArchiveRestore, Calendar, ArrowUpDown,
+  ArchiveRestore, Calendar, ArrowUpDown, Loader2,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -110,6 +110,7 @@ export default function CarouselsPage() {
   const [importDragging, setImportDragging] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const [importing, setImporting] = useState(false);
+  const [importingFileName, setImportingFileName] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   /* close menus on outside click — BUBBLE phase so stopPropagation inside menus works */
@@ -161,7 +162,11 @@ export default function CarouselsPage() {
   async function handleFiles(files: FileList | File[]) {
     const jsons = Array.from(files).filter((f) => f.name.endsWith(".json") || f.type === "application/json");
     if (!jsons.length) { toast.error("Sin archivos JSON"); return; }
-    for (const f of jsons) await importJson(await f.text());
+    for (const f of jsons) {
+      setImportingFileName(f.name);
+      await importJson(await f.text());
+    }
+    setImportingFileName(null);
   }
 
   /* ── Folders ── */
@@ -805,22 +810,28 @@ export default function CarouselsPage() {
 
       {/* ── Import modal ── */}
       {showImport && (
-        <div className="fixed inset-0 z-[60] bg-black/60 flex items-end sm:items-center justify-center p-0 sm:p-4"
-          onClick={() => setShowImport(false)}>
+        <div
+          className="fixed inset-0 z-[60] bg-black/60 flex items-end sm:items-center justify-center p-0 sm:p-4"
+          onClick={() => { if (!importing) setShowImport(false); }}
+        >
           <div className="bg-background w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl border shadow-xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b">
               <h2 className="font-semibold">Nuevo carousel</h2>
-              <button onClick={() => setShowImport(false)} className="text-muted-foreground hover:text-foreground">
+              <button
+                onClick={() => { if (!importing) setShowImport(false); }}
+                disabled={importing}
+                className="text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed"
+              >
                 <X className="h-4 w-4" />
               </button>
             </div>
             <div className="flex border-b">
               {(["file", "paste"] as const).map((t) => (
-                <button key={t} onClick={() => setImportTab(t)}
+                <button key={t} onClick={() => { if (!importing) setImportTab(t); }}
                   className={`flex-1 py-2.5 text-sm font-medium transition-colors flex items-center justify-center gap-1.5 ${
                     importTab === t ? "border-b-2 border-primary text-foreground" : "text-muted-foreground"
-                  }`}>
+                  } ${importing ? "pointer-events-none" : ""}`}>
                   {t === "file" ? <><FileJson className="h-3.5 w-3.5" /> Archivo</> : <><ClipboardPaste className="h-3.5 w-3.5" /> Pegar</>}
                 </button>
               ))}
@@ -829,30 +840,55 @@ export default function CarouselsPage() {
               {importTab === "file" ? (
                 <>
                   <div
-                    className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed py-10 cursor-pointer transition-colors ${
-                      importDragging ? "border-primary bg-primary/5" : "border-muted-foreground/30 hover:bg-muted/40"
+                    className={`relative flex flex-col items-center justify-center rounded-xl border-2 border-dashed py-10 transition-colors ${
+                      importing
+                        ? "border-primary/40 bg-primary/5 cursor-default"
+                        : importDragging
+                        ? "border-primary bg-primary/5 cursor-copy"
+                        : "border-muted-foreground/30 hover:bg-muted/40 cursor-pointer"
                     }`}
-                    onClick={() => fileInputRef.current?.click()}
-                    onDragOver={(e) => { e.preventDefault(); setImportDragging(true); }}
+                    onClick={() => { if (!importing) fileInputRef.current?.click(); }}
+                    onDragOver={(e) => { e.preventDefault(); if (!importing) setImportDragging(true); }}
                     onDragLeave={() => setImportDragging(false)}
-                    onDrop={(e) => { e.preventDefault(); setImportDragging(false); handleFiles(e.dataTransfer.files); }}
+                    onDrop={(e) => { e.preventDefault(); setImportDragging(false); if (!importing) handleFiles(e.dataTransfer.files); }}
                   >
-                    <FileJson className="h-8 w-8 text-muted-foreground mb-2" />
-                    <p className="text-sm font-medium">Arrastra un .json o toca para seleccionar</p>
-                    <p className="text-xs text-muted-foreground mt-1">Un archivo puede tener varios carousels</p>
+                    {importing ? (
+                      <>
+                        <Loader2 className="h-8 w-8 text-primary mb-3 animate-spin" />
+                        <p className="text-sm font-medium text-primary">Importando…</p>
+                        {importingFileName && (
+                          <p className="text-xs text-muted-foreground mt-1 max-w-[260px] truncate text-center">
+                            {importingFileName}
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <FileJson className="h-8 w-8 text-muted-foreground mb-2" />
+                        <p className="text-sm font-medium">Arrastra un .json o toca para seleccionar</p>
+                        <p className="text-xs text-muted-foreground mt-1">Un archivo puede tener varios carousels</p>
+                      </>
+                    )}
                   </div>
                   <input ref={fileInputRef} type="file" accept=".json,application/json" multiple className="hidden"
                     onChange={(e) => e.target.files && handleFiles(e.target.files)} />
                 </>
               ) : (
                 <div className="space-y-3">
-                  <textarea value={pasteText} onChange={(e) => setPasteText(e.target.value)}
+                  <textarea
+                    value={pasteText}
+                    onChange={(e) => setPasteText(e.target.value)}
+                    disabled={importing}
                     placeholder={'{ "version": "1.0", "carousels": [...] }'}
                     rows={8}
-                    className="w-full rounded-xl border bg-muted/20 px-3 py-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
-                  <button onClick={() => importJson(pasteText)}
+                    className="w-full rounded-xl border bg-muted/20 px-3 py-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary resize-none disabled:opacity-50"
+                  />
+                  <button
+                    onClick={() => importJson(pasteText)}
                     disabled={!pasteText.trim() || importing}
-                    className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50">
+                    className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {importing && <Loader2 className="h-4 w-4 animate-spin" />}
                     {importing ? "Importando…" : "Importar JSON"}
                   </button>
                 </div>
