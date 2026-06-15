@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -22,6 +22,10 @@ import {
   ArrowUpDown,
   Pencil,
   Check,
+  Folder,
+  FolderInput,
+  Archive,
+  ArchiveRestore,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -46,6 +50,8 @@ type CarouselDetail = {
   name: string;
   shortId: string | null;
   status: string;
+  folderId: string | null;
+  archivedAt: number | null;
   videoTitle: string | null;
   videoDescription: string | null;
   videoHashtags: string | null;
@@ -57,6 +63,8 @@ type CarouselDetail = {
   sentToAccountName: string | null;
   slides: Slide[];
 };
+
+type FolderRecord = { id: string; name: string };
 
 type PickerImage = { id: string; path: string; tag: string; originalName: string; scope: string };
 type TikTokAccount = { id: string; name: string };
@@ -82,6 +90,7 @@ export default function CarouselDetailPage() {
 
   const { data: carousel, mutate } = useSWR<CarouselDetail>(`/api/carousels/${id}`, fetcher);
   const { data: accounts = [] } = useSWR<TikTokAccount[]>("/api/tiktok/accounts", fetcher);
+  const { data: folders = [] } = useSWR<FolderRecord[]>("/api/folders", fetcher);
   // Lista completa para prev/next — usa el mismo caché que /carousels
   const { data: allCarousels = [] } = useSWR<{ id: string }[]>("/api/carousels", fetcher);
   const currentIndex = allCarousels.findIndex((c) => c.id === id);
@@ -98,6 +107,15 @@ export default function CarouselDetailPage() {
   const [pickerSearch, setPickerSearch] = useState("");
   const [pickerScope, setPickerScope] = useState<"all" | "global" | "app" | "influencer">("all");
   const [changingImage, setChangingImage] = useState(false);
+
+  // Folder picker dropdown
+  const [folderOpen, setFolderOpen] = useState(false);
+  useEffect(() => {
+    if (!folderOpen) return;
+    const close = () => setFolderOpen(false);
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, [folderOpen]);
 
   // Text editing
   const [editingSlideId, setEditingSlideId] = useState<string | null>(null);
@@ -310,6 +328,28 @@ export default function CarouselDetailPage() {
     toast("✓ Copiado todo", { duration: 800 });
   }
 
+  async function patchCarousel(body: Record<string, unknown>) {
+    await fetch(`/api/carousels/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    await mutate();
+  }
+
+  async function moveToFolder(folderId: string | null) {
+    setFolderOpen(false);
+    await patchCarousel({ folderId });
+  }
+
+  async function toggleArchive() {
+    if (!carousel) return;
+    const archivedAt = carousel.archivedAt ? null : Math.floor(Date.now() / 1000);
+    await patchCarousel({ archivedAt });
+    if (archivedAt) toast("Archivado", { duration: 1500 });
+    else toast("Desarchivado", { duration: 1500 });
+  }
+
   async function saveSlideTexts() {
     if (!carousel || !editingSlideId) return;
     setSavingText(true);
@@ -421,6 +461,11 @@ export default function CarouselDetailPage() {
               Enviado
             </span>
           )}
+          {carousel.archivedAt && (
+            <span className="text-xs bg-muted text-muted-foreground rounded-full px-2 py-0.5 font-medium">
+              Archivado
+            </span>
+          )}
         </div>
         <p className="text-xs text-muted-foreground mt-0.5">
           {[carousel.influencerName, carousel.appName].filter(Boolean).join(" × ")}
@@ -429,6 +474,55 @@ export default function CarouselDetailPage() {
           )}
           {carousel.sentAt && <span className="ml-1">· {fmtDate(carousel.sentAt)}</span>}
         </p>
+
+        {/* Folder + archive actions */}
+        <div className="flex items-center gap-2 mt-2.5">
+          {/* Folder picker */}
+          <div className="relative">
+            <button
+              onClick={() => setFolderOpen((o) => !o)}
+              className="flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors hover:bg-muted/60 bg-muted/30"
+            >
+              <Folder className="h-3 w-3 shrink-0" />
+              {carousel.folderId
+                ? (folders.find((f) => f.id === carousel.folderId)?.name ?? "Carpeta")
+                : "Sin carpeta"}
+              <ChevronDown className="h-2.5 w-2.5 opacity-50" />
+            </button>
+            {folderOpen && (
+              <div className="absolute top-full mt-1.5 left-0 z-50 bg-background border shadow-xl rounded-xl overflow-hidden min-w-40 py-1">
+                <button
+                  className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-muted/60"
+                  onClick={() => moveToFolder(null)}
+                >
+                  <FolderInput className="h-3 w-3" />
+                  Sin carpeta
+                </button>
+                {folders.length > 0 && <div className="border-t my-1" />}
+                {folders.map((f) => (
+                  <button
+                    key={f.id}
+                    className={`flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-muted/60 ${carousel.folderId === f.id ? "font-semibold text-primary" : ""}`}
+                    onClick={() => moveToFolder(f.id)}
+                  >
+                    <Folder className="h-3 w-3" />
+                    {f.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Archive toggle */}
+          <button
+            onClick={toggleArchive}
+            className="flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors hover:bg-muted/60 bg-muted/30 text-muted-foreground hover:text-foreground"
+          >
+            {carousel.archivedAt
+              ? <><ArchiveRestore className="h-3 w-3" /> Desarchivar</>
+              : <><Archive className="h-3 w-3" /> Archivar</>}
+          </button>
+        </div>
       </div>
 
       {/* ── ShortId ── */}

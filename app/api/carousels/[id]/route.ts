@@ -16,6 +16,8 @@ export async function GET(
       name: carousels.name,
       shortId: carousels.shortId,
       status: carousels.status,
+      folderId: carousels.folderId,
+      archivedAt: carousels.archivedAt,
       videoTitle: carousels.videoTitle,
       videoDescription: carousels.videoDescription,
       videoHashtags: carousels.videoHashtags,
