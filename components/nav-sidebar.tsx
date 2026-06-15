@@ -12,6 +12,7 @@ import {
   Film,
   Hash,
   LogOut,
+  BarChart2,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Sun, Moon } from "lucide-react";
@@ -20,6 +21,7 @@ import { getSupabaseBrowser } from "@/lib/supabase-browser";
 const links = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/carousels", label: "Carousels", icon: Film },
+  { href: "/stats", label: "Stats", icon: BarChart2 },
   { href: "/images", label: "Imágenes", icon: ImageIcon },
   { href: "/apps", label: "Apps", icon: Smartphone },
   { href: "/influencers", label: "Influencers", icon: Users },

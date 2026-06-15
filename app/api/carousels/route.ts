@@ -8,12 +8,19 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const listOnly = searchParams.get("list") === "1";
   const archivedOnly = searchParams.get("archived") === "1";
+  const publishedOnly = searchParams.get("published") === "1";
 
   const appId = searchParams.get("appId");
   const influencerId = searchParams.get("influencerId");
   const sentToAccountId = searchParams.get("sentToAccountId");
+
+  // published=1 shows all published regardless of archived status
+  const archiveCondition = publishedOnly
+    ? isNotNull(carousels.publishedAt)
+    : archivedOnly ? isNotNull(carousels.archivedAt) : isNull(carousels.archivedAt);
+
   const conditions = [
-    archivedOnly ? isNotNull(carousels.archivedAt) : isNull(carousels.archivedAt),
+    archiveCondition,
     appId ? eq(carousels.appId, appId) : undefined,
     influencerId ? eq(carousels.influencerId, influencerId) : undefined,
     sentToAccountId ? eq(carousels.sentToAccountId, sentToAccountId) : undefined,
@@ -33,6 +40,8 @@ export async function GET(req: Request) {
         archivedAt: carousels.archivedAt,
         scheduledDate: carousels.scheduledDate,
         publishedAt: carousels.publishedAt,
+        stats: carousels.stats,
+        videoTitle: carousels.videoTitle,
         appId: carousels.appId,
         influencerId: carousels.influencerId,
         sentAt: carousels.sentAt,

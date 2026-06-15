@@ -333,7 +333,8 @@ export default function CarouselsPage() {
 
   const filtered = useMemo(() => {
     let rows = all;
-    if (activeFolder) rows = rows.filter((c) => c.folderId === activeFolder);
+    if (activeFolder === "__none__") rows = rows.filter((c) => !c.folderId);
+    else if (activeFolder) rows = rows.filter((c) => c.folderId === activeFolder);
     if (filter === "pending") rows = rows.filter((c) => !c.sentAt && !c.publishedAt);
     if (filter === "drafted") rows = rows.filter((c) => !!c.sentAt && !c.publishedAt);
     if (filter === "published") rows = rows.filter((c) => !!c.publishedAt);
@@ -509,14 +510,28 @@ export default function CarouselsPage() {
 
         {/* Folder strip (only in normal view) */}
         {!showArchived && (
-          <div className="flex items-center gap-1.5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+          <div className="flex items-center gap-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+
+            {/* Sin carpeta */}
+            <div
+              className={`shrink-0 flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-medium transition-all cursor-pointer select-none
+                ${activeFolder === "__none__"
+                  ? "bg-foreground text-background border-foreground"
+                  : "bg-muted/30 hover:bg-muted/60 border-transparent hover:border-muted-foreground/20 text-muted-foreground hover:text-foreground"
+                }`}
+              onClick={() => setActiveFolder(activeFolder === "__none__" ? null : "__none__")}
+            >
+              <FolderInput className="h-3.5 w-3.5 shrink-0" />
+              <span>Sin carpeta</span>
+            </div>
+
             {folders.map((f) => {
               const isActive = activeFolder === f.id;
               const isDropTarget = dragOverFolderId === f.id;
               return (
                 <div
                   key={f.id}
-                  className={`group relative shrink-0 flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all cursor-pointer select-none
+                  className={`group relative shrink-0 flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-medium transition-all cursor-pointer select-none
                     ${isActive
                       ? "bg-foreground text-background border-foreground"
                       : isDropTarget
@@ -530,7 +545,7 @@ export default function CarouselsPage() {
                   onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverFolderId(null); }}
                   onDrop={(e) => { e.preventDefault(); handleDropOnFolder(f.id); }}
                 >
-                  <Folder className="h-3 w-3 shrink-0" />
+                  <Folder className="h-3.5 w-3.5 shrink-0" />
                   {renamingFolderId === f.id ? (
                     <input
                       ref={renamingInputRef}
@@ -543,18 +558,18 @@ export default function CarouselsPage() {
                       }}
                       onBlur={renameFolder}
                       onClick={(e) => e.stopPropagation()}
-                      className="bg-transparent outline-none w-24 text-xs"
+                      className="bg-transparent outline-none w-28 text-sm"
                     />
                   ) : (
                     <span className="leading-none">{f.name}</span>
                   )}
-                  <span className="opacity-50 leading-none tabular-nums">{f.carouselCount}</span>
+                  <span className="opacity-40 leading-none tabular-nums text-xs">{f.carouselCount}</span>
                   {!isDragging && renamingFolderId !== f.id && (
                     <button
-                      className="opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity ml-0.5"
+                      className="opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity"
                       onClick={(e) => openFolderMenu(f.id, e)}
                     >
-                      <MoreHorizontal className="h-3 w-3" />
+                      <MoreHorizontal className="h-3.5 w-3.5" />
                     </button>
                   )}
                 </div>
@@ -562,8 +577,8 @@ export default function CarouselsPage() {
             })}
 
             {showNewFolder ? (
-              <div className="shrink-0 flex items-center gap-1.5 rounded-full border border-primary/50 bg-primary/5 px-2.5 py-1">
-                <Folder className="h-3 w-3 shrink-0 text-primary" />
+              <div className="shrink-0 flex items-center gap-2 rounded-xl border border-primary/50 bg-primary/5 px-3.5 py-2">
+                <Folder className="h-3.5 w-3.5 shrink-0 text-primary" />
                 <input
                   ref={newFolderRef}
                   value={newFolderName}
@@ -574,15 +589,15 @@ export default function CarouselsPage() {
                   }}
                   onBlur={createFolder}
                   placeholder="Nombre…"
-                  className="bg-transparent outline-none text-xs w-24"
+                  className="bg-transparent outline-none text-sm w-28"
                 />
               </div>
             ) : (
               <button
                 onClick={() => setShowNewFolder(true)}
-                className="shrink-0 flex items-center gap-1 rounded-full px-2.5 py-1 text-xs text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/40 transition-colors"
+                className="shrink-0 flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/40 transition-colors"
               >
-                <Plus className="h-3 w-3" />
+                <Plus className="h-3.5 w-3.5" />
                 Carpeta
               </button>
             )}
@@ -590,9 +605,9 @@ export default function CarouselsPage() {
             {/* Archive toggle */}
             <button
               onClick={() => setShowArchived(true)}
-              className="shrink-0 ml-auto flex items-center gap-1 rounded-full px-2.5 py-1 text-xs text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/40 transition-colors"
+              className="shrink-0 ml-auto flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/40 transition-colors"
             >
-              <Archive className="h-3 w-3" />
+              <Archive className="h-3.5 w-3.5" />
               Archivados
             </button>
           </div>
