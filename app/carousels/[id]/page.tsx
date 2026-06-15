@@ -180,28 +180,13 @@ export default function CarouselDetailPage() {
     }
   }
 
-  // Re-encode via canvas: changes JPEG binary (new DCT coefficients) + 1px corner
-  // noise so TikTok doesn't flag it as duplicate content. Visually identical.
-  function reencodeImage(blob: Blob): Promise<Blob> {
-    return new Promise((resolve) => {
-      const img = new Image();
-      const url = URL.createObjectURL(blob);
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        canvas.width = img.naturalWidth;
-        canvas.height = img.naturalHeight;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) { URL.revokeObjectURL(url); resolve(blob); return; }
-        ctx.drawImage(img, 0, 0);
-        const px = ctx.getImageData(0, 0, 1, 1);
-        px.data[0] = Math.max(0, Math.min(255, px.data[0] + (Math.random() > 0.5 ? 1 : -1)));
-        ctx.putImageData(px, 0, 0);
-        canvas.toBlob((b) => { URL.revokeObjectURL(url); resolve(b ?? blob); }, "image/jpeg", 0.95);
-      };
-      img.onerror = () => { URL.revokeObjectURL(url); resolve(blob); };
-      img.crossOrigin = "anonymous";
-      img.src = url;
-    });
+  // Appends a random byte after the JPEG EOI marker (FF D9).
+  // Decoders ignore trailing data so quality is untouched, but the file
+  // hash changes — enough to avoid TikTok file-level duplicate detection.
+  async function rehashImage(blob: Blob): Promise<Blob> {
+    const arr = await blob.arrayBuffer();
+    const extra = new Uint8Array([Math.floor(Math.random() * 256)]);
+    return new Blob([arr, extra], { type: blob.type });
   }
 
   async function handleShareSlides() {
@@ -213,7 +198,7 @@ export default function CarouselDetailPage() {
         const url = slide.generatedImagePath ?? slide.imagePath;
         if (!url) continue;
         const raw = await fetch(url).then((r) => r.blob());
-        const unique = await reencodeImage(raw);
+        const unique = await rehashImage(raw);
         files.push(new File([unique], `slide-${slide.order + 1}.jpg`, { type: "image/jpeg" }));
       }
       if (files.length === 0) { toast.error("Sin imágenes"); return; }
