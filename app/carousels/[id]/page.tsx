@@ -559,17 +559,17 @@ export default function CarouselDetailPage() {
       {/* ── Image picker modal ── */}
       {pickerSlideId && (
         <div
-          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center"
           onClick={() => setPickerSlideId(null)}
         >
           <div
-            className="bg-background rounded-2xl border shadow-xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col"
+            className="bg-background rounded-t-2xl sm:rounded-2xl border shadow-xl w-full sm:max-w-2xl max-h-[88vh] sm:max-h-[82vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header + filtros — fijos, no scrollean */}
-            <div className="border-b">
+            {/* Sticky header */}
+            <div className="shrink-0 border-b">
               <div className="flex items-center justify-between px-4 py-3">
-                <h3 className="font-semibold">Seleccionar imagen</h3>
+                <h3 className="font-semibold text-sm">Seleccionar imagen</h3>
                 <button
                   onClick={() => setPickerSlideId(null)}
                   className="text-muted-foreground hover:text-foreground"
@@ -578,8 +578,8 @@ export default function CarouselDetailPage() {
                 </button>
               </div>
 
-              {/* Search */}
-              <div className="px-4 pb-3">
+              <div className="px-4 pb-3 space-y-2.5">
+                {/* Search */}
                 <input
                   type="text"
                   placeholder="Buscar por tag o nombre…"
@@ -587,90 +587,88 @@ export default function CarouselDetailPage() {
                   onChange={(e) => setPickerSearch(e.target.value)}
                   className="w-full h-8 rounded-lg border bg-muted/40 px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                 />
-              </div>
 
-              {/* Scope pills */}
-              <div className="flex gap-1.5 px-4 pb-3">
-                {(["all", "global", "app", "influencer"] as const).map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => setPickerScope(s)}
-                    className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
-                      pickerScope === s
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "bg-muted text-muted-foreground border-transparent hover:border-muted-foreground/30"
-                    }`}
-                  >
-                    {s === "all" ? "Todos" : s === "global" ? "Global" : s === "app" ? "App" : "Influencer"}
-                  </button>
-                ))}
-              </div>
-
-              {/* Tag chips del slide actual */}
-              {pickerAvailTags.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 px-4 pb-3">
-                  {pickerAvailTags.map((tag) => (
+                {/* Scope pills */}
+                <div className="flex gap-1.5">
+                  {(["all", "global", "app", "influencer"] as const).map((s) => (
                     <button
-                      key={tag}
-                      onClick={() =>
-                        setPickerTagFilter((prev) =>
-                          prev.includes(tag)
-                            ? prev.filter((t) => t !== tag)
-                            : [...prev, tag]
-                        )
-                      }
+                      key={s}
+                      onClick={() => setPickerScope(s)}
                       className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
-                        pickerTagFilter.includes(tag)
+                        pickerScope === s
                           ? "bg-primary text-primary-foreground border-primary"
                           : "bg-muted text-muted-foreground border-transparent hover:border-muted-foreground/30"
                       }`}
                     >
-                      #{tag}
+                      {s === "all" ? "Todos" : s === "global" ? "Global" : s === "app" ? "App" : "Influencer"}
                     </button>
                   ))}
-                  {pickerTagFilter.length > 0 && (
-                    <button
-                      onClick={() => setPickerTagFilter([])}
-                      className="px-2 py-1 rounded-full text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
-                    >
-                      <X className="h-2.5 w-2.5" /> Limpiar
-                    </button>
-                  )}
                 </div>
-              )}
+
+                {/* Tag chips del slide actual */}
+                {pickerAvailTags.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {pickerAvailTags.map((tag) => (
+                      <button
+                        key={tag}
+                        onClick={() =>
+                          setPickerTagFilter((prev) =>
+                            prev.includes(tag)
+                              ? prev.filter((t) => t !== tag)
+                              : [...prev, tag]
+                          )
+                        }
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                          pickerTagFilter.includes(tag)
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-muted text-muted-foreground border-transparent hover:border-muted-foreground/30"
+                        }`}
+                      >
+                        #{tag}
+                      </button>
+                    ))}
+                    {pickerTagFilter.length > 0 && (
+                      <button
+                        onClick={() => setPickerTagFilter([])}
+                        className="px-2 py-1 rounded-full text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                      >
+                        <X className="h-2.5 w-2.5" /> Limpiar
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* Grid — scrollable */}
-            <div className="overflow-y-auto p-4">
+            {/* Scrollable grid */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-4">
               {pickerLoading ? (
                 <div className="text-sm text-muted-foreground text-center py-8">
                   Cargando imágenes…
                 </div>
               ) : (
-                <>
-                  <div className="grid grid-cols-4 gap-2">
-                    {displayPickerImages.map((img) => (
-                      <button
-                        key={img.id}
-                        className="rounded-lg overflow-hidden border hover:border-primary hover:shadow-md transition-all"
-                        style={{ aspectRatio: "3/4" }}
-                        disabled={changingImage}
-                        onClick={() => handleImageChange(img.id)}
-                      >
-                        <img
-                          src={img.path}
-                          alt={img.originalName}
-                          className="w-full h-full object-cover"
-                        />
-                      </button>
-                    ))}
-                    {displayPickerImages.length === 0 && (
-                      <div className="col-span-4 text-sm text-muted-foreground text-center py-8">
-                        Sin imágenes con estos filtros.
-                      </div>
-                    )}
-                  </div>
-                </>
+                <div className="grid grid-cols-4 gap-2">
+                  {displayPickerImages.map((img) => (
+                    <button
+                      key={img.id}
+                      className="rounded-lg overflow-hidden border hover:border-primary hover:shadow-md transition-all"
+                      style={{ aspectRatio: "3/4" }}
+                      disabled={changingImage}
+                      onClick={() => handleImageChange(img.id)}
+                    >
+                      <img
+                        src={img.path}
+                        alt={img.originalName}
+                        className="w-full h-full object-cover"
+                      />
+                    </button>
+                  ))}
+                  {displayPickerImages.length === 0 && (
+                    <div className="col-span-4 text-sm text-muted-foreground text-center py-8">
+                      Sin imágenes con estos filtros.
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </div>
