@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { carousels, carouselSlides, apps, influencers, images, tiktokAccounts } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { deleteFile, urlToStoragePath } from "@/lib/supabase";
+import { now } from "@/lib/ids";
 
 export async function GET(
   _req: Request,
@@ -48,6 +49,27 @@ export async function GET(
     .orderBy(carouselSlides.order);
 
   return NextResponse.json({ ...carousel, slides });
+}
+
+export async function PATCH(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const body = await req.json();
+
+  const patch: Record<string, unknown> = { updatedAt: now() };
+  if ("folderId" in body) patch.folderId = body.folderId ?? null;
+  if ("name" in body) patch.name = body.name;
+
+  const [updated] = await db
+    .update(carousels)
+    .set(patch)
+    .where(eq(carousels.id, id))
+    .returning({ id: carousels.id });
+
+  if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  return NextResponse.json({ ok: true });
 }
 
 export async function DELETE(

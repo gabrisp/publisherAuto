@@ -29,6 +29,7 @@ export async function GET(req: Request) {
         status: carousels.status,
         renderText: carousels.renderText,
         zipPath: carousels.zipPath,
+        folderId: carousels.folderId,
         appId: carousels.appId,
         influencerId: carousels.influencerId,
         sentAt: carousels.sentAt,

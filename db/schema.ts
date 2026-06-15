@@ -32,6 +32,12 @@ export const images = pgTable("images", {
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
 });
 
+export const folders = pgTable("folders", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+});
+
 export const carousels = pgTable("carousels", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
@@ -42,6 +48,7 @@ export const carousels = pgTable("carousels", {
   }),
   status: text("status").notNull().default("draft"),
   renderText: integer("render_text").notNull().default(1),
+  folderId: text("folder_id").references(() => folders.id, { onDelete: "set null" }),
   videoTitle: text("video_title"),
   videoDescription: text("video_description"),
   videoHashtags: text("video_hashtags"), // JSON array string, e.g. '["gymtok","musclegrowth",...]'
