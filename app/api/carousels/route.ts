@@ -31,6 +31,8 @@ export async function GET(req: Request) {
         zipPath: carousels.zipPath,
         folderId: carousels.folderId,
         archivedAt: carousels.archivedAt,
+        scheduledDate: carousels.scheduledDate,
+        publishedAt: carousels.publishedAt,
         appId: carousels.appId,
         influencerId: carousels.influencerId,
         sentAt: carousels.sentAt,

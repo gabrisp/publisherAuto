@@ -18,6 +18,9 @@ export async function GET(
       status: carousels.status,
       folderId: carousels.folderId,
       archivedAt: carousels.archivedAt,
+      scheduledDate: carousels.scheduledDate,
+      publishedAt: carousels.publishedAt,
+      stats: carousels.stats,
       videoTitle: carousels.videoTitle,
       videoDescription: carousels.videoDescription,
       videoHashtags: carousels.videoHashtags,
@@ -64,6 +67,9 @@ export async function PATCH(
   if ("folderId" in body) patch.folderId = body.folderId ?? null;
   if ("name" in body) patch.name = body.name;
   if ("archivedAt" in body) patch.archivedAt = body.archivedAt ?? null;
+  if ("scheduledDate" in body) patch.scheduledDate = body.scheduledDate ?? null;
+  if ("publishedAt" in body) patch.publishedAt = body.publishedAt ?? null;
+  if ("stats" in body) patch.stats = body.stats ? JSON.stringify(body.stats) : null;
 
   const [updated] = await db
     .update(carousels)

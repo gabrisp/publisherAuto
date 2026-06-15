@@ -7,7 +7,7 @@ import {
   Search, X, LayoutGrid, List, Trash2, CheckSquare, Plus,
   FileJson, ClipboardPaste, Folder, FolderOpen, MoreHorizontal,
   ChevronRight, Copy, MoveRight, Pencil, FolderInput, Archive,
-  ArchiveRestore,
+  ArchiveRestore, Calendar,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -34,6 +34,8 @@ type Carousel = {
   slides: Slide[];
   folderId: string | null;
   archivedAt: number | null;
+  scheduledDate: string | null;
+  publishedAt: number | null;
 };
 
 type FolderRecord = {
@@ -368,6 +370,15 @@ export default function CarouselsPage() {
     catch { toast.error("Error al eliminar"); mutate(); }
   }
 
+  async function handleDateChange(carouselId: string, date: string | null) {
+    mutate((prev) => prev?.map((c) => c.id === carouselId ? { ...c, scheduledDate: date } : c), false);
+    await fetch(`/api/carousels/${carouselId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scheduledDate: date }),
+    });
+  }
+
   const allFilteredSelected = filtered.length > 0 && filtered.every((c) => selected.has(c.id));
   const isDragging = !!draggingCarouselId;
 
@@ -568,34 +579,52 @@ export default function CarouselsPage() {
             ? <><Link href="/generate" className="underline">Importa un JSON</Link> para crear carousels.</>
             : "Sin carousels en esta categoría."}
         </p>
-      ) : view === "grid" ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {filtered.map((c) => (
-            <CarouselGridCard
-              key={c.id}
-              c={c}
-              selected={selected.has(c.id)}
-              onToggleSelect={(e) => toggleSelect(c.id, e)}
-              onOpen={() => router.push(`/carousels/${c.id}`)}
-              onContextMenu={(e) => openContextMenu(c.id, e)}
-              onDragStart={() => handleDragStart(c.id)}
-              onDragEnd={handleDragEnd}
-            />
-          ))}
-        </div>
       ) : (
-        <div className="flex flex-col gap-2">
-          {filtered.map((c) => (
-            <CarouselRowItem
-              key={c.id}
-              c={c}
-              selected={selected.has(c.id)}
-              onToggleSelect={(e) => toggleSelect(c.id, e)}
-              onOpen={() => router.push(`/carousels/${c.id}`)}
-              onContextMenu={(e) => openContextMenu(c.id, e)}
-              onDragStart={() => handleDragStart(c.id)}
-              onDragEnd={handleDragEnd}
-            />
+        <div className="flex flex-col gap-6">
+          {(activeFolder ? groupByDate(filtered) : [{ date: null as string | null, items: filtered }]).map(({ date, items }) => (
+            <div key={date ?? "__nodate"} className="flex flex-col gap-3">
+              {activeFolder && (
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider shrink-0">
+                    {date ? fmtDateHeader(date) : "Sin fecha"}
+                  </span>
+                  <div className="flex-1 border-t border-dashed" />
+                </div>
+              )}
+              {view === "grid" ? (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {items.map((c) => (
+                    <CarouselGridCard
+                      key={c.id}
+                      c={c}
+                      selected={selected.has(c.id)}
+                      onToggleSelect={(e) => toggleSelect(c.id, e)}
+                      onOpen={() => router.push(`/carousels/${c.id}`)}
+                      onContextMenu={(e) => openContextMenu(c.id, e)}
+                      onDragStart={() => handleDragStart(c.id)}
+                      onDragEnd={handleDragEnd}
+                      onDateChange={handleDateChange}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {items.map((c) => (
+                    <CarouselRowItem
+                      key={c.id}
+                      c={c}
+                      selected={selected.has(c.id)}
+                      onToggleSelect={(e) => toggleSelect(c.id, e)}
+                      onOpen={() => router.push(`/carousels/${c.id}`)}
+                      onContextMenu={(e) => openContextMenu(c.id, e)}
+                      onDragStart={() => handleDragStart(c.id)}
+                      onDragEnd={handleDragEnd}
+                      onDateChange={handleDateChange}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           ))}
         </div>
       )}
@@ -902,6 +931,63 @@ function SentPill() {
   );
 }
 
+function PublishedPill() {
+  return (
+    <span className="shrink-0 text-[10px] bg-purple-500/15 text-purple-600 dark:text-purple-400 rounded-full px-2 py-0.5 font-semibold leading-tight">
+      Publicado
+    </span>
+  );
+}
+
+function DatePill({ date, onChange }: { date: string | null; onChange: (d: string | null) => void }) {
+  const ref = useRef<HTMLInputElement>(null);
+  return (
+    <div
+      className="relative inline-flex items-center gap-1 rounded-full bg-muted/40 border border-transparent hover:border-muted-foreground/20 px-2 py-0.5 text-[10px] text-muted-foreground cursor-pointer hover:bg-muted/70 transition-colors shrink-0"
+      onClick={(e) => { e.stopPropagation(); ref.current?.showPicker?.(); }}
+    >
+      <Calendar className="h-2.5 w-2.5 shrink-0" />
+      <span>{date ? fmtShortDate(date) : "Fecha"}</span>
+      <input
+        ref={ref}
+        type="date"
+        value={date ?? ""}
+        onChange={(e) => onChange(e.target.value || null)}
+        onClick={(e) => e.stopPropagation()}
+        className="absolute inset-0 opacity-0 w-full cursor-pointer"
+      />
+    </div>
+  );
+}
+
+/* ── Date helpers ─────────────────────────────────────────────────────── */
+function fmtShortDate(d: string): string {
+  const [y, m, day] = d.split("-").map(Number);
+  return new Date(y, m - 1, day).toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short" });
+}
+
+function fmtDateHeader(d: string): string {
+  const [y, m, day] = d.split("-").map(Number);
+  return new Date(y, m - 1, day).toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" });
+}
+
+function groupByDate(items: Carousel[]): { date: string | null; items: Carousel[] }[] {
+  const withDate = items.filter((c) => c.scheduledDate).sort((a, b) =>
+    (a.scheduledDate ?? "").localeCompare(b.scheduledDate ?? "")
+  );
+  const noDate = items.filter((c) => !c.scheduledDate);
+  const map = new Map<string, Carousel[]>();
+  for (const c of withDate) {
+    const d = c.scheduledDate!;
+    if (!map.has(d)) map.set(d, []);
+    map.get(d)!.push(c);
+  }
+  const result: { date: string | null; items: Carousel[] }[] = [];
+  for (const [date, cs] of map) result.push({ date, items: cs });
+  if (noDate.length > 0) result.push({ date: null, items: noDate });
+  return result;
+}
+
 function Checkbox({ checked, onClick }: { checked: boolean; onClick: (e: React.MouseEvent) => void }) {
   return (
     <div
@@ -920,7 +1006,7 @@ function Checkbox({ checked, onClick }: { checked: boolean; onClick: (e: React.M
 
 /* ── Grid card ───────────────────────────────────────────────────────── */
 function CarouselGridCard({
-  c, selected, onToggleSelect, onOpen, onContextMenu, onDragStart, onDragEnd,
+  c, selected, onToggleSelect, onOpen, onContextMenu, onDragStart, onDragEnd, onDateChange,
 }: {
   c: Carousel;
   selected: boolean;
@@ -929,6 +1015,7 @@ function CarouselGridCard({
   onContextMenu: (e: React.MouseEvent) => void;
   onDragStart: () => void;
   onDragEnd: () => void;
+  onDateChange: (id: string, date: string | null) => void;
 }) {
   return (
     <div
@@ -963,13 +1050,19 @@ function CarouselGridCard({
       <div className="p-3 flex flex-col gap-1.5">
         <div className="flex items-start justify-between gap-2">
           <span className="text-2xl font-black font-mono leading-none tracking-wide">{c.shortId ?? "—"}</span>
-          {!!c.sentAt && <SentPill />}
+          <div className="flex flex-col items-end gap-1">
+            {!!c.publishedAt && <PublishedPill />}
+            {!!c.sentAt && !c.publishedAt && <SentPill />}
+          </div>
         </div>
         <p className="text-[11px] text-muted-foreground leading-snug truncate">{c.name}</p>
-        <div className="text-[11px] text-muted-foreground leading-snug">
-          {c.sentToAccountName && <span className="font-medium text-foreground">@{c.sentToAccountName}</span>}
-          {c.sentToAccountName && (c.appName || c.influencerName) && " · "}
-          {[c.influencerName, c.appName].filter(Boolean).join(" × ")}
+        <div className="flex items-end justify-between gap-1">
+          <div className="text-[11px] text-muted-foreground leading-snug truncate">
+            {c.sentToAccountName && <span className="font-medium text-foreground">@{c.sentToAccountName}</span>}
+            {c.sentToAccountName && (c.appName || c.influencerName) && " · "}
+            {[c.influencerName, c.appName].filter(Boolean).join(" × ")}
+          </div>
+          <DatePill date={c.scheduledDate} onChange={(d) => onDateChange(c.id, d)} />
         </div>
       </div>
     </div>
@@ -978,7 +1071,7 @@ function CarouselGridCard({
 
 /* ── Row item ────────────────────────────────────────────────────────── */
 function CarouselRowItem({
-  c, selected, onToggleSelect, onOpen, onContextMenu, onDragStart, onDragEnd,
+  c, selected, onToggleSelect, onOpen, onContextMenu, onDragStart, onDragEnd, onDateChange,
 }: {
   c: Carousel;
   selected: boolean;
@@ -987,6 +1080,7 @@ function CarouselRowItem({
   onContextMenu: (e: React.MouseEvent) => void;
   onDragStart: () => void;
   onDragEnd: () => void;
+  onDateChange: (id: string, date: string | null) => void;
 }) {
   return (
     <div
@@ -1005,12 +1099,15 @@ function CarouselRowItem({
       <span className="text-xl font-black font-mono tracking-wide shrink-0 w-14 leading-none">{c.shortId ?? "—"}</span>
       <div className="flex-1 min-w-0">
         <p className="font-semibold text-sm truncate leading-tight">{c.name}</p>
-        <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-          {c.sentToAccountName && <span className="font-medium text-foreground">@{c.sentToAccountName} · </span>}
-          {[c.influencerName, c.appName].filter(Boolean).join(" × ")}
-        </p>
+        <div className="flex items-center gap-2 mt-0.5">
+          <p className="text-[11px] text-muted-foreground truncate">
+            {c.sentToAccountName && <span className="font-medium text-foreground">@{c.sentToAccountName} · </span>}
+            {[c.influencerName, c.appName].filter(Boolean).join(" × ")}
+          </p>
+          <DatePill date={c.scheduledDate} onChange={(d) => onDateChange(c.id, d)} />
+        </div>
       </div>
-      {!!c.sentAt ? <SentPill /> : (
+      {!!c.publishedAt ? <PublishedPill /> : !!c.sentAt ? <SentPill /> : (
         <span className="shrink-0 text-[10px] bg-muted text-muted-foreground rounded-full px-2 py-0.5 font-medium leading-tight">
           Pendiente
         </span>

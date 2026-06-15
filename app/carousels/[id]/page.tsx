@@ -26,6 +26,9 @@ import {
   FolderInput,
   Archive,
   ArchiveRestore,
+  Calendar,
+  BarChart2,
+  CheckCircle2,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -45,6 +48,14 @@ type Slide = {
   texts: string;
 };
 
+type Stats = {
+  views?: number;
+  likes?: number;
+  comments?: number;
+  shares?: number;
+  saves?: number;
+};
+
 type CarouselDetail = {
   id: string;
   name: string;
@@ -52,6 +63,9 @@ type CarouselDetail = {
   status: string;
   folderId: string | null;
   archivedAt: number | null;
+  scheduledDate: string | null;
+  publishedAt: number | null;
+  stats: string | null;
   videoTitle: string | null;
   videoDescription: string | null;
   videoHashtags: string | null;
@@ -116,6 +130,18 @@ export default function CarouselDetailPage() {
     document.addEventListener("click", close);
     return () => document.removeEventListener("click", close);
   }, [folderOpen]);
+
+  // Desktop tab
+  const [activeTab, setActiveTab] = useState<"contenido" | "stats">("contenido");
+
+  // Stats form
+  const [statsForm, setStatsForm] = useState<Stats>({});
+  const [savingStats, setSavingStats] = useState(false);
+  useEffect(() => {
+    if (carousel?.stats) {
+      try { setStatsForm(JSON.parse(carousel.stats)); } catch { /* */ }
+    }
+  }, [carousel?.stats]);
 
   // Text editing
   const [editingSlideId, setEditingSlideId] = useState<string | null>(null);
@@ -328,6 +354,28 @@ export default function CarouselDetailPage() {
     toast("✓ Copiado todo", { duration: 800 });
   }
 
+  async function handleScheduledDateChange(date: string | null) {
+    await patchCarousel({ scheduledDate: date });
+  }
+
+  async function togglePublished() {
+    if (!carousel) return;
+    const publishedAt = carousel.publishedAt ? null : Math.floor(Date.now() / 1000);
+    await patchCarousel({ publishedAt });
+    toast(publishedAt ? "Marcado como publicado" : "Desmarcado", { duration: 1500 });
+  }
+
+  async function saveStats() {
+    if (!carousel) return;
+    setSavingStats(true);
+    try {
+      await patchCarousel({ stats: statsForm });
+      toast.success("Stats guardadas");
+    } finally {
+      setSavingStats(false);
+    }
+  }
+
   async function patchCarousel(body: Record<string, unknown>) {
     await fetch(`/api/carousels/${id}`, {
       method: "PATCH",
@@ -513,6 +561,22 @@ export default function CarouselDetailPage() {
             )}
           </div>
 
+          {/* Scheduled date */}
+          <div className="relative">
+            <label className="flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors hover:bg-muted/60 bg-muted/30 text-muted-foreground hover:text-foreground cursor-pointer">
+              <Calendar className="h-3 w-3 shrink-0" />
+              {carousel.scheduledDate
+                ? new Date(carousel.scheduledDate + "T00:00:00").toLocaleDateString("es-ES", { day: "numeric", month: "short" })
+                : "Fecha"}
+              <input
+                type="date"
+                value={carousel.scheduledDate ?? ""}
+                onChange={(e) => handleScheduledDateChange(e.target.value || null)}
+                className="absolute inset-0 opacity-0 cursor-pointer"
+              />
+            </label>
+          </div>
+
           {/* Archive toggle */}
           <button
             onClick={toggleArchive}
@@ -537,8 +601,86 @@ export default function CarouselDetailPage() {
         </div>
       </div>
 
+      {/* ── Desktop tabs ── */}
+      <div className="hidden md:flex items-center gap-1 border-b">
+        {(["contenido", "stats"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setActiveTab(t)}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              activeTab === t
+                ? "border-primary text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {t === "contenido" ? <><ImageIcon className="h-3.5 w-3.5" />Contenido</> : <><BarChart2 className="h-3.5 w-3.5" />Stats</>}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Stats tab (desktop only) ── */}
+      <div className={activeTab !== "stats" ? "hidden" : "hidden md:block"}>
+        <div className="max-w-md space-y-6">
+          {/* Published toggle */}
+          <div className="flex items-center justify-between p-4 rounded-xl border bg-muted/20">
+            <div>
+              <p className="text-sm font-semibold">Estado de publicación</p>
+              {carousel.publishedAt && (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Publicado el {new Date(carousel.publishedAt * 1000).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })}
+                </p>
+              )}
+            </div>
+            <button
+              onClick={togglePublished}
+              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                carousel.publishedAt
+                  ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 hover:bg-purple-500/25"
+                  : "bg-muted hover:bg-muted/70 text-muted-foreground"
+              }`}
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              {carousel.publishedAt ? "Publicado" : "Marcar publicado"}
+            </button>
+          </div>
+
+          {/* Stats form */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold">Estadísticas</h3>
+            <div className="grid grid-cols-2 gap-3">
+              {([
+                ["views", "Visualizaciones"],
+                ["likes", "Me gusta"],
+                ["comments", "Comentarios"],
+                ["shares", "Compartidos"],
+                ["saves", "Guardados"],
+              ] as [keyof Stats, string][]).map(([key, label]) => (
+                <div key={key} className="space-y-1">
+                  <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{label}</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={statsForm[key] ?? ""}
+                    onChange={(e) => setStatsForm((prev) => ({ ...prev, [key]: e.target.value ? Number(e.target.value) : undefined }))}
+                    placeholder="—"
+                    className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={saveStats}
+              disabled={savingStats}
+              className="w-full py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50 transition-opacity"
+            >
+              {savingStats ? "Guardando…" : "Guardar stats"}
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* ── Contenido: 2 columnas en desktop, 1 en móvil ── */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+      <div className={`grid grid-cols-1 md:grid-cols-5 gap-6 ${activeTab === "stats" ? "md:hidden" : ""}`}>
         {/* Slides */}
         <div className="md:col-span-2 space-y-3">
           <div className="flex items-center justify-between">
