@@ -45,7 +45,7 @@ type FolderRecord = {
   carouselCount: number;
 };
 
-type FilterVal = "all" | "pending" | "drafted" | "published";
+type FilterVal = "all" | "pending" | "draft" | "published";
 type SortBy = "created" | "scheduled";
 type ViewMode = "grid" | "row";
 
@@ -322,7 +322,7 @@ export default function CarouselsPage() {
   const counts = useMemo(() => ({
     all: all.length,
     pending: all.filter((c) => !c.sentAt && !c.publishedAt).length,
-    drafted: all.filter((c) => !!c.sentAt && !c.publishedAt).length,
+    draft: all.filter((c) => !!c.sentAt && !c.publishedAt).length,
     published: all.filter((c) => !!c.publishedAt).length,
   }), [all]);
 
@@ -336,7 +336,7 @@ export default function CarouselsPage() {
     if (activeFolder === "__none__") rows = rows.filter((c) => !c.folderId);
     else if (activeFolder) rows = rows.filter((c) => c.folderId === activeFolder);
     if (filter === "pending") rows = rows.filter((c) => !c.sentAt && !c.publishedAt);
-    if (filter === "drafted") rows = rows.filter((c) => !!c.sentAt && !c.publishedAt);
+    if (filter === "draft") rows = rows.filter((c) => !!c.sentAt && !c.publishedAt);
     if (filter === "published") rows = rows.filter((c) => !!c.publishedAt);
     if (filterApp) rows = rows.filter((c) => c.appName === filterApp);
     if (filterInfluencer) rows = rows.filter((c) => c.influencerName === filterInfluencer);
@@ -449,8 +449,8 @@ export default function CarouselsPage() {
           <div className="flex gap-0.5 rounded-lg border p-1 bg-muted/30 overflow-x-auto shrink-0" style={{ scrollbarWidth: "none" }}>
             {([
               ["all", `Todos (${counts.all})`],
-              ["pending", `Sin enviar (${counts.pending})`],
-              ["drafted", `Drafts (${counts.drafted})`],
+              ["pending", `Sin subir (${counts.pending})`],
+              ["draft", `Draft (${counts.draft})`],
               ["published", `Publicados (${counts.published})`],
             ] as [FilterVal, string][]).map(([f, label]) => (
               <button key={f} onClick={() => setFilter(f)}
@@ -973,10 +973,10 @@ function SlideThumbs({ slides, small = false }: { slides: Slide[]; small?: boole
   );
 }
 
-function SentPill() {
+function DraftPill() {
   return (
-    <span className="shrink-0 text-[10px] bg-green-500/15 text-green-600 dark:text-green-400 rounded-full px-2 py-0.5 font-semibold leading-tight">
-      Enviado
+    <span className="shrink-0 text-[10px] bg-amber-500/15 text-amber-600 dark:text-amber-400 rounded-full px-2 py-0.5 font-semibold leading-tight">
+      Draft
     </span>
   );
 }
@@ -1101,8 +1101,7 @@ function CarouselGridCard({
         <div className="flex items-start justify-between gap-2">
           <span className="text-2xl font-black font-mono leading-none tracking-wide">{c.shortId ?? "—"}</span>
           <div className="flex flex-col items-end gap-1">
-            {!!c.publishedAt && <PublishedPill />}
-            {!!c.sentAt && !c.publishedAt && <SentPill />}
+            {!!c.publishedAt ? <PublishedPill /> : !!c.sentAt ? <DraftPill /> : null}
           </div>
         </div>
         <p className="text-[11px] text-muted-foreground leading-snug truncate">{c.name}</p>
@@ -1157,7 +1156,7 @@ function CarouselRowItem({
           <DatePill date={c.scheduledDate} onChange={(d) => onDateChange(c.id, d)} />
         </div>
       </div>
-      {!!c.publishedAt ? <PublishedPill /> : !!c.sentAt ? <SentPill /> : (
+      {!!c.publishedAt ? <PublishedPill /> : !!c.sentAt ? <DraftPill /> : (
         <span className="shrink-0 text-[10px] bg-muted text-muted-foreground rounded-full px-2 py-0.5 font-medium leading-tight">
           Pendiente
         </span>
