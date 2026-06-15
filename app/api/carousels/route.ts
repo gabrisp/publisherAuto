@@ -1,25 +1,25 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { carousels, carouselSlides, apps, influencers, images, tiktokAccounts } from "@/db/schema";
-import { and, eq, count } from "drizzle-orm";
+import { and, eq, count, isNull, isNotNull } from "drizzle-orm";
 import { processBatchJson } from "@/lib/carousel-generator";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const listOnly = searchParams.get("list") === "1"; // skip slides payload when not needed
+  const listOnly = searchParams.get("list") === "1";
+  const archivedOnly = searchParams.get("archived") === "1";
 
-  // Optional entity filters
   const appId = searchParams.get("appId");
   const influencerId = searchParams.get("influencerId");
   const sentToAccountId = searchParams.get("sentToAccountId");
   const conditions = [
+    archivedOnly ? isNotNull(carousels.archivedAt) : isNull(carousels.archivedAt),
     appId ? eq(carousels.appId, appId) : undefined,
     influencerId ? eq(carousels.influencerId, influencerId) : undefined,
     sentToAccountId ? eq(carousels.sentToAccountId, sentToAccountId) : undefined,
   ].filter((c): c is NonNullable<typeof c> => c !== undefined);
-  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+  const whereClause = and(...conditions);
 
-  // 3 flat queries — no N+1
   const [rows, counts, allSlides] = await Promise.all([
     db
       .select({
@@ -30,6 +30,7 @@ export async function GET(req: Request) {
         renderText: carousels.renderText,
         zipPath: carousels.zipPath,
         folderId: carousels.folderId,
+        archivedAt: carousels.archivedAt,
         appId: carousels.appId,
         influencerId: carousels.influencerId,
         sentAt: carousels.sentAt,
@@ -89,7 +90,6 @@ export async function GET(req: Request) {
     rows.map((r) => ({
       ...r,
       slideCount: countMap[r.id] ?? 0,
-      // URL estable en Supabase Storage del ID slide (generado junto con las slides)
       idSlideImagePath:
         r.status !== "draft" && supabaseUrl
           ? `${supabaseUrl}/storage/v1/object/public/uploads/generated/idslide_${r.id}.jpg`
@@ -108,9 +108,6 @@ export async function POST(req: Request) {
     const ids = await processBatchJson(json);
     return NextResponse.json({ created: ids }, { status: 201 });
   } catch (e) {
-    return NextResponse.json(
-      { error: (e as Error).message },
-      { status: 422 }
-    );
+    return NextResponse.json({ error: (e as Error).message }, { status: 422 });
   }
 }

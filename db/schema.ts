@@ -49,6 +49,7 @@ export const carousels = pgTable("carousels", {
   status: text("status").notNull().default("draft"),
   renderText: integer("render_text").notNull().default(1),
   folderId: text("folder_id").references(() => folders.id, { onDelete: "set null" }),
+  archivedAt: bigint("archived_at", { mode: "number" }),
   videoTitle: text("video_title"),
   videoDescription: text("video_description"),
   videoHashtags: text("video_hashtags"), // JSON array string, e.g. '["gymtok","musclegrowth",...]'

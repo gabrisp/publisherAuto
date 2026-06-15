@@ -6,7 +6,8 @@ import useSWR from "swr";
 import {
   Search, X, LayoutGrid, List, Trash2, CheckSquare, Plus,
   FileJson, ClipboardPaste, Folder, FolderOpen, MoreHorizontal,
-  ChevronRight, Copy, MoveRight, Pencil, FolderInput,
+  ChevronRight, Copy, MoveRight, Pencil, FolderInput, Archive,
+  ArchiveRestore,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -32,6 +33,7 @@ type Carousel = {
   slideCount: number;
   slides: Slide[];
   folderId: string | null;
+  archivedAt: number | null;
 };
 
 type FolderRecord = {
@@ -59,7 +61,11 @@ const SWR_OPTS = { revalidateOnFocus: false, dedupingInterval: 10_000 };
 /* ── Page ────────────────────────────────────────────────────────────── */
 export default function CarouselsPage() {
   const router = useRouter();
-  const { data: all = [], mutate } = useSWR<Carousel[]>("/api/carousels", fetcher, SWR_OPTS);
+
+  /* archive view toggle */
+  const [showArchived, setShowArchived] = useState(false);
+  const apiUrl = showArchived ? "/api/carousels?archived=1" : "/api/carousels";
+  const { data: all = [], mutate } = useSWR<Carousel[]>(apiUrl, fetcher, SWR_OPTS);
   const { data: folders = [], mutate: mutateFolders } = useSWR<FolderRecord[]>("/api/folders", fetcher, SWR_OPTS);
 
   /* filter / view */
@@ -74,19 +80,25 @@ export default function CarouselsPage() {
   const [activeFolder, setActiveFolder] = useState<string | null>(null);
   const [showNewFolder, setShowNewFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
-  const [savingFolder, setSavingFolder] = useState(false);
   const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
   const [renamingName, setRenamingName] = useState("");
   const newFolderRef = useRef<HTMLInputElement>(null);
-  const renamingRef = useRef<HTMLInputElement>(null);
+  const renamingInputRef = useRef<HTMLInputElement>(null);
+  /* guards against double-fire from onBlur + onKeyDown(Enter) */
+  const creatingFolderGuard = useRef(false);
+  const renamingGuard = useRef(false);
 
-  /* drag carousel → folder */
+  /* drag carousel → folder — use ref for reliability in drop handler */
+  const draggingCarouselRef = useRef<string | null>(null);
   const [draggingCarouselId, setDraggingCarouselId] = useState<string | null>(null);
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
 
   /* context menus */
   const [contextMenu, setContextMenu] = useState<ContextMenu>(null);
   const [folderMenu, setFolderMenu] = useState<FolderMenu>(null);
+
+  /* bulk move popup */
+  const [bulkMoveOpen, setBulkMoveOpen] = useState(false);
 
   /* import modal */
   const [showImport, setShowImport] = useState(false);
@@ -96,16 +108,32 @@ export default function CarouselsPage() {
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  /* close menus on outside click */
+  /* close menus on outside click — BUBBLE phase so stopPropagation inside menus works */
   useEffect(() => {
-    if (!contextMenu && !folderMenu) return;
-    const close = () => { setContextMenu(null); setFolderMenu(null); };
-    document.addEventListener("click", close, { capture: true });
-    return () => document.removeEventListener("click", close, { capture: true });
-  }, [contextMenu, folderMenu]);
+    if (!contextMenu && !folderMenu && !bulkMoveOpen) return;
+    const close = () => {
+      setContextMenu(null);
+      setFolderMenu(null);
+      setBulkMoveOpen(false);
+    };
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, [contextMenu, folderMenu, bulkMoveOpen]);
 
-  useEffect(() => { if (showNewFolder) setTimeout(() => newFolderRef.current?.focus(), 50); }, [showNewFolder]);
-  useEffect(() => { if (renamingFolderId) setTimeout(() => renamingRef.current?.focus(), 50); }, [renamingFolderId]);
+  useEffect(() => {
+    if (showNewFolder) setTimeout(() => newFolderRef.current?.focus(), 50);
+  }, [showNewFolder]);
+
+  useEffect(() => {
+    if (renamingFolderId) setTimeout(() => renamingInputRef.current?.focus(), 50);
+  }, [renamingFolderId]);
+
+  /* reset selection + folder when switching archive mode */
+  useEffect(() => {
+    setSelected(new Set());
+    setActiveFolder(null);
+    setSearch("");
+  }, [showArchived]);
 
   /* ── Import ── */
   async function importJson(text: string) {
@@ -134,31 +162,38 @@ export default function CarouselsPage() {
 
   /* ── Folders ── */
   async function createFolder() {
-    if (!newFolderName.trim()) { setShowNewFolder(false); return; }
-    setSavingFolder(true);
+    if (creatingFolderGuard.current) return;
+    const name = newFolderName.trim();
+    if (!name) { setShowNewFolder(false); return; }
+    creatingFolderGuard.current = true;
+    setNewFolderName("");
+    setShowNewFolder(false);
     try {
       const res = await fetch("/api/folders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newFolderName.trim() }),
+        body: JSON.stringify({ name }),
       });
-      if (!res.ok) { toast.error("Error al crear"); return; }
-      setNewFolderName("");
-      setShowNewFolder(false);
-      mutateFolders();
-    } finally { setSavingFolder(false); }
+      if (!res.ok) toast.error("Error al crear carpeta");
+      else mutateFolders();
+    } finally { creatingFolderGuard.current = false; }
   }
 
   async function renameFolder() {
-    if (!renamingFolderId) return;
-    if (!renamingName.trim()) { setRenamingFolderId(null); return; }
-    await fetch(`/api/folders/${renamingFolderId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: renamingName.trim() }),
-    });
+    if (renamingGuard.current || !renamingFolderId) return;
+    const id = renamingFolderId;
+    const name = renamingName.trim();
+    renamingGuard.current = true;
     setRenamingFolderId(null);
-    mutateFolders();
+    if (!name) { renamingGuard.current = false; return; }
+    try {
+      await fetch(`/api/folders/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      mutateFolders();
+    } finally { renamingGuard.current = false; }
   }
 
   async function deleteFolder(id: string) {
@@ -170,7 +205,7 @@ export default function CarouselsPage() {
     mutate();
   }
 
-  /* ── Move carousel to folder ── */
+  /* ── Move to folder ── */
   async function moveToFolder(carouselId: string, folderId: string | null) {
     mutate((prev) => prev?.map((c) => c.id === carouselId ? { ...c, folderId } : c), false);
     const res = await fetch(`/api/carousels/${carouselId}`, {
@@ -182,15 +217,65 @@ export default function CarouselsPage() {
     mutateFolders();
   }
 
+  async function handleBulkMove(folderId: string | null) {
+    setBulkMoveOpen(false);
+    const ids = [...selected];
+    mutate((prev) => prev?.map((c) => ids.includes(c.id) ? { ...c, folderId } : c), false);
+    await Promise.all(ids.map((id) =>
+      fetch(`/api/carousels/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ folderId }),
+      })
+    ));
+    mutateFolders();
+  }
+
+  /* ── Archive ── */
+  async function setArchived(carouselId: string, archive: boolean) {
+    setContextMenu(null);
+    const archivedAt = archive ? Math.floor(Date.now() / 1000) : null;
+    mutate((prev) => prev?.filter((c) => c.id !== carouselId), false);
+    await fetch(`/api/carousels/${carouselId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ archivedAt }),
+    });
+  }
+
+  async function handleBulkArchive(archive: boolean) {
+    const ids = [...selected];
+    setSelected(new Set());
+    const archivedAt = archive ? Math.floor(Date.now() / 1000) : null;
+    mutate((prev) => prev?.filter((c) => !ids.includes(c.id)), false);
+    await Promise.all(ids.map((id) =>
+      fetch(`/api/carousels/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ archivedAt }),
+      })
+    ));
+  }
+
   /* ── Drag ── */
-  function handleDragStart(carouselId: string) { setDraggingCarouselId(carouselId); }
-  function handleDragEnd() { setDraggingCarouselId(null); setDragOverFolderId(null); }
+  function handleDragStart(carouselId: string) {
+    draggingCarouselRef.current = carouselId;
+    setDraggingCarouselId(carouselId);
+  }
+
+  function handleDragEnd() {
+    draggingCarouselRef.current = null;
+    setDraggingCarouselId(null);
+    setDragOverFolderId(null);
+  }
 
   async function handleDropOnFolder(folderId: string | null) {
-    if (!draggingCarouselId) return;
-    setDragOverFolderId(null);
-    await moveToFolder(draggingCarouselId, folderId);
+    const cid = draggingCarouselRef.current;
+    if (!cid) return;
+    draggingCarouselRef.current = null;
     setDraggingCarouselId(null);
+    setDragOverFolderId(null);
+    await moveToFolder(cid, folderId);
   }
 
   /* ── Duplicate ── */
@@ -209,6 +294,7 @@ export default function CarouselsPage() {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     setContextMenu({ carouselId, top: rect.bottom + 6, right: window.innerWidth - rect.right, submenu: null });
     setFolderMenu(null);
+    setBulkMoveOpen(false);
   }
 
   function openFolderMenu(folderId: string, e: React.MouseEvent) {
@@ -217,6 +303,7 @@ export default function CarouselsPage() {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     setFolderMenu({ id: folderId, top: rect.bottom + 6, right: window.innerWidth - rect.right });
     setContextMenu(null);
+    setBulkMoveOpen(false);
   }
 
   async function deleteCarousel(id: string) {
@@ -282,7 +369,6 @@ export default function CarouselsPage() {
   }
 
   const allFilteredSelected = filtered.length > 0 && filtered.every((c) => selected.has(c.id));
-  const activeFolderName = activeFolder ? (folders.find((f) => f.id === activeFolder)?.name ?? "") : null;
   const isDragging = !!draggingCarouselId;
 
   return (
@@ -290,26 +376,38 @@ export default function CarouselsPage() {
 
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Carousels</h1>
-        <button
-          onClick={() => setShowImport(true)}
-          className="h-9 w-9 flex items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm active:scale-95 transition-transform"
-        >
-          <Plus className="h-5 w-5" />
-        </button>
+        <div className="flex items-center gap-3">
+          {showArchived && (
+            <button
+              onClick={() => setShowArchived(false)}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <ChevronRight className="h-5 w-5 rotate-180" />
+            </button>
+          )}
+          <h1 className="text-2xl font-bold">{showArchived ? "Archivados" : "Carousels"}</h1>
+        </div>
+        {!showArchived && (
+          <button
+            onClick={() => setShowImport(true)}
+            className="h-9 w-9 flex items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm active:scale-95 transition-transform"
+          >
+            <Plus className="h-5 w-5" />
+          </button>
+        )}
       </div>
 
-      {/* ── Controls block: toolbar + folder strip ── */}
+      {/* ── Controls block ── */}
       <div className="flex flex-col gap-2.5">
 
         {/* Toolbar */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="relative flex-1 min-w-52">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative flex-1 min-w-44">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar por ID, nombre, cuenta…"
+              placeholder="Buscar…"
               className="w-full rounded-lg border bg-background pl-8 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             />
             {search && (
@@ -346,115 +444,126 @@ export default function CarouselsPage() {
           <div className="flex items-center gap-2 flex-wrap">
             {appOptions.length > 1 && (
               <select value={filterApp} onChange={(e) => setFilterApp(e.target.value)}
-                className="rounded-lg border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring">
+                className="rounded-lg border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
                 <option value="">Todos los apps</option>
                 {appOptions.map((a) => <option key={a} value={a}>{a}</option>)}
               </select>
             )}
             {influencerOptions.length > 1 && (
               <select value={filterInfluencer} onChange={(e) => setFilterInfluencer(e.target.value)}
-                className="rounded-lg border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring">
+                className="rounded-lg border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
                 <option value="">Todos los influencers</option>
                 {influencerOptions.map((i) => <option key={i} value={i}>{i}</option>)}
               </select>
             )}
             {(filterApp || filterInfluencer) && (
               <button onClick={() => { setFilterApp(""); setFilterInfluencer(""); }}
-                className="text-xs text-muted-foreground hover:text-foreground px-2 py-1.5 rounded-lg hover:bg-muted/50 transition-colors">
+                className="text-xs text-muted-foreground hover:text-foreground px-2 py-1.5 rounded-lg hover:bg-muted/50">
                 <X className="h-3.5 w-3.5" />
               </button>
             )}
           </div>
         )}
 
-        {/* Folder strip — always rendered */}
-        <div className="flex items-center gap-1.5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
-          {folders.map((f) => {
-            const isActive = activeFolder === f.id;
-            const isDropTarget = dragOverFolderId === f.id;
-            return (
-              <div
-                key={f.id}
-                className={`group relative shrink-0 flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all cursor-pointer select-none
-                  ${isActive
-                    ? "bg-foreground text-background border-foreground"
-                    : isDropTarget
-                    ? "border-dashed border-2 border-primary bg-primary/10 text-primary scale-105"
-                    : isDragging
-                    ? "border-dashed border-muted-foreground/30 hover:border-primary hover:bg-primary/5 hover:text-primary"
-                    : "bg-muted/30 hover:bg-muted/60 border-transparent hover:border-muted-foreground/20 text-muted-foreground hover:text-foreground"
-                  }`}
-                onClick={() => !renamingFolderId && setActiveFolder(isActive ? null : f.id)}
-                onDragOver={(e) => { e.preventDefault(); setDragOverFolderId(f.id); }}
-                onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverFolderId(null); }}
-                onDrop={(e) => { e.preventDefault(); handleDropOnFolder(f.id); }}
-              >
-                <Folder className="h-3 w-3 shrink-0" />
-                {renamingFolderId === f.id ? (
-                  <input
-                    ref={renamingRef}
-                    value={renamingName}
-                    onChange={(e) => setRenamingName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") renameFolder();
-                      if (e.key === "Escape") setRenamingFolderId(null);
-                      e.stopPropagation();
-                    }}
-                    onBlur={renameFolder}
-                    onClick={(e) => e.stopPropagation()}
-                    className="bg-transparent outline-none w-24 text-xs"
-                  />
-                ) : (
-                  <span className="leading-none">{f.name}</span>
-                )}
-                <span className="opacity-50 leading-none tabular-nums">{f.carouselCount}</span>
-                {!isDragging && renamingFolderId !== f.id && (
-                  <button
-                    className="opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity ml-0.5"
-                    onClick={(e) => openFolderMenu(f.id, e)}
-                  >
-                    <MoreHorizontal className="h-3 w-3" />
-                  </button>
-                )}
+        {/* Folder strip (only in normal view) */}
+        {!showArchived && (
+          <div className="flex items-center gap-1.5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+            {folders.map((f) => {
+              const isActive = activeFolder === f.id;
+              const isDropTarget = dragOverFolderId === f.id;
+              return (
+                <div
+                  key={f.id}
+                  className={`group relative shrink-0 flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all cursor-pointer select-none
+                    ${isActive
+                      ? "bg-foreground text-background border-foreground"
+                      : isDropTarget
+                      ? "border-dashed border-2 border-primary bg-primary/10 text-primary scale-105"
+                      : isDragging
+                      ? "border-dashed border-muted-foreground/30 hover:border-primary hover:bg-primary/5 hover:text-primary"
+                      : "bg-muted/30 hover:bg-muted/60 border-transparent hover:border-muted-foreground/20 text-muted-foreground hover:text-foreground"
+                    }`}
+                  onClick={() => !renamingFolderId && setActiveFolder(isActive ? null : f.id)}
+                  onDragOver={(e) => { e.preventDefault(); setDragOverFolderId(f.id); }}
+                  onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverFolderId(null); }}
+                  onDrop={(e) => { e.preventDefault(); handleDropOnFolder(f.id); }}
+                >
+                  <Folder className="h-3 w-3 shrink-0" />
+                  {renamingFolderId === f.id ? (
+                    <input
+                      ref={renamingInputRef}
+                      value={renamingName}
+                      onChange={(e) => setRenamingName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") renameFolder();
+                        if (e.key === "Escape") setRenamingFolderId(null);
+                        e.stopPropagation();
+                      }}
+                      onBlur={renameFolder}
+                      onClick={(e) => e.stopPropagation()}
+                      className="bg-transparent outline-none w-24 text-xs"
+                    />
+                  ) : (
+                    <span className="leading-none">{f.name}</span>
+                  )}
+                  <span className="opacity-50 leading-none tabular-nums">{f.carouselCount}</span>
+                  {!isDragging && renamingFolderId !== f.id && (
+                    <button
+                      className="opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity ml-0.5"
+                      onClick={(e) => openFolderMenu(f.id, e)}
+                    >
+                      <MoreHorizontal className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+
+            {showNewFolder ? (
+              <div className="shrink-0 flex items-center gap-1.5 rounded-full border border-primary/50 bg-primary/5 px-2.5 py-1">
+                <Folder className="h-3 w-3 shrink-0 text-primary" />
+                <input
+                  ref={newFolderRef}
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") createFolder();
+                    if (e.key === "Escape") { setShowNewFolder(false); setNewFolderName(""); }
+                  }}
+                  onBlur={createFolder}
+                  placeholder="Nombre…"
+                  className="bg-transparent outline-none text-xs w-24"
+                />
               </div>
-            );
-          })}
+            ) : (
+              <button
+                onClick={() => setShowNewFolder(true)}
+                className="shrink-0 flex items-center gap-1 rounded-full px-2.5 py-1 text-xs text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/40 transition-colors"
+              >
+                <Plus className="h-3 w-3" />
+                Carpeta
+              </button>
+            )}
 
-          {showNewFolder ? (
-            <div className="shrink-0 flex items-center gap-1.5 rounded-full border border-primary/50 bg-primary/5 px-2.5 py-1">
-              <Folder className="h-3 w-3 shrink-0 text-primary" />
-              <input
-                ref={newFolderRef}
-                value={newFolderName}
-                onChange={(e) => setNewFolderName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") createFolder();
-                  if (e.key === "Escape") { setShowNewFolder(false); setNewFolderName(""); }
-                }}
-                onBlur={() => newFolderName.trim() ? createFolder() : setShowNewFolder(false)}
-                placeholder="Nombre…"
-                className="bg-transparent outline-none text-xs w-24"
-                disabled={savingFolder}
-              />
-            </div>
-          ) : (
+            {/* Archive toggle */}
             <button
-              onClick={() => setShowNewFolder(true)}
-              className="shrink-0 flex items-center gap-1 rounded-full px-2.5 py-1 text-xs text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/40 transition-colors"
+              onClick={() => setShowArchived(true)}
+              className="shrink-0 ml-auto flex items-center gap-1 rounded-full px-2.5 py-1 text-xs text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/40 transition-colors"
             >
-              <Plus className="h-3 w-3" />
-              Carpeta
+              <Archive className="h-3 w-3" />
+              Archivados
             </button>
-          )}
-        </div>
-
-      </div>{/* end controls block */}
+          </div>
+        )}
+      </div>
 
       {/* Grid / List */}
       {filtered.length === 0 ? (
         <p className="text-sm text-muted-foreground py-16 text-center">
           {search
             ? `Sin resultados para "${search}".`
+            : showArchived
+            ? "No hay carousels archivados."
             : all.length === 0
             ? <><Link href="/generate" className="underline">Importa un JSON</Link> para crear carousels.</>
             : "Sin carousels en esta categoría."}
@@ -510,7 +619,7 @@ export default function CarouselsPage() {
               <div className="border-t my-1" />
               <button
                 className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-muted/60"
-                onClick={async (e) => { e.stopPropagation(); const cid = contextMenu.carouselId; setContextMenu(null); await moveToFolder(cid, null); }}
+                onClick={(e) => { e.stopPropagation(); const cid = contextMenu.carouselId; setContextMenu(null); moveToFolder(cid, null); }}
               >
                 <FolderInput className="h-3.5 w-3.5" />
                 Sin carpeta
@@ -519,7 +628,7 @@ export default function CarouselsPage() {
                 <button
                   key={f.id}
                   className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-muted/60"
-                  onClick={async (e) => { e.stopPropagation(); const cid = contextMenu.carouselId; setContextMenu(null); await moveToFolder(cid, f.id); }}
+                  onClick={(e) => { e.stopPropagation(); const cid = contextMenu.carouselId; setContextMenu(null); moveToFolder(cid, f.id); }}
                 >
                   <Folder className="h-3.5 w-3.5" />
                   {f.name}
@@ -542,7 +651,7 @@ export default function CarouselsPage() {
                 <Copy className="h-3.5 w-3.5" />
                 Duplicar
               </button>
-              {folders.length > 0 && (
+              {!showArchived && folders.length > 0 && (
                 <button
                   className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-muted/60"
                   onClick={(e) => { e.stopPropagation(); setContextMenu((m) => m ? { ...m, submenu: "move" } : null); }}
@@ -550,6 +659,24 @@ export default function CarouselsPage() {
                   <MoveRight className="h-3.5 w-3.5" />
                   Mover a…
                   <ChevronRight className="h-3 w-3 ml-auto" />
+                </button>
+              )}
+              <div className="border-t my-1" />
+              {showArchived ? (
+                <button
+                  className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-muted/60"
+                  onClick={(e) => { e.stopPropagation(); setArchived(contextMenu.carouselId, false); }}
+                >
+                  <ArchiveRestore className="h-3.5 w-3.5" />
+                  Desarchivar
+                </button>
+              ) : (
+                <button
+                  className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-muted/60"
+                  onClick={(e) => { e.stopPropagation(); setArchived(contextMenu.carouselId, true); }}
+                >
+                  <Archive className="h-3.5 w-3.5" />
+                  Archivar
                 </button>
               )}
               <div className="border-t my-1" />
@@ -646,7 +773,7 @@ export default function CarouselsPage() {
                     className="w-full rounded-xl border bg-muted/20 px-3 py-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
                   <button onClick={() => importJson(pasteText)}
                     disabled={!pasteText.trim() || importing}
-                    className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50 transition-opacity">
+                    className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50">
                     {importing ? "Importando…" : "Importar JSON"}
                   </button>
                 </div>
@@ -664,12 +791,71 @@ export default function CarouselsPage() {
             className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-lg hover:bg-muted/50"
           >
             <CheckSquare className="h-3.5 w-3.5" />
-            {allFilteredSelected ? "Deseleccionar todo" : "Seleccionar todo"}
+            {allFilteredSelected ? "Deseleccionar" : "Seleccionar todo"}
           </button>
           <div className="w-px h-4 bg-border" />
           <span className="text-sm font-semibold px-1 tabular-nums">
-            {selected.size} seleccionado{selected.size > 1 ? "s" : ""}
+            {selected.size} sel.
           </span>
+          <div className="w-px h-4 bg-border" />
+
+          {/* Mover a — only in normal view with folders */}
+          {!showArchived && folders.length > 0 && (
+            <div className="relative">
+              <button
+                onClick={(e) => { e.stopPropagation(); setBulkMoveOpen((o) => !o); setContextMenu(null); setFolderMenu(null); }}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-lg hover:bg-muted/50 transition-colors"
+              >
+                <MoveRight className="h-3.5 w-3.5" />
+                Mover
+              </button>
+              {bulkMoveOpen && (
+                <div
+                  className="absolute bottom-full mb-2 left-0 bg-background border shadow-2xl rounded-xl overflow-hidden min-w-40 py-1 z-[110]"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button
+                    className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-muted/60"
+                    onClick={(e) => { e.stopPropagation(); handleBulkMove(null); }}
+                  >
+                    <FolderInput className="h-3.5 w-3.5" />
+                    Sin carpeta
+                  </button>
+                  <div className="border-t my-1" />
+                  {folders.map((f) => (
+                    <button
+                      key={f.id}
+                      className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-muted/60"
+                      onClick={(e) => { e.stopPropagation(); handleBulkMove(f.id); }}
+                    >
+                      <Folder className="h-3.5 w-3.5" />
+                      {f.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Archive / Unarchive */}
+          {showArchived ? (
+            <button
+              onClick={() => handleBulkArchive(false)}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-lg hover:bg-muted/50 transition-colors"
+            >
+              <ArchiveRestore className="h-3.5 w-3.5" />
+              Desarchivar
+            </button>
+          ) : (
+            <button
+              onClick={() => handleBulkArchive(true)}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-lg hover:bg-muted/50 transition-colors"
+            >
+              <Archive className="h-3.5 w-3.5" />
+              Archivar
+            </button>
+          )}
+
           <div className="w-px h-4 bg-border" />
           <button onClick={clearSelection}
             className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-lg hover:bg-muted/50 transition-colors">
@@ -696,18 +882,13 @@ function SlideThumbs({ slides, small = false }: { slides: Slide[]; small?: boole
         slides.map((slide) => {
           const src = slide.generatedImagePath ?? slide.imagePath;
           return (
-            <div key={slide.id}
-              className="shrink-0 rounded-md overflow-hidden bg-muted"
-              style={{ width: w, height: h }}>
-              {src
-                ? <img src={src} alt="" className="w-full h-full object-cover" />
-                : <div className="w-full h-full bg-muted/50" />}
+            <div key={slide.id} className="shrink-0 rounded-md overflow-hidden bg-muted" style={{ width: w, height: h }}>
+              {src ? <img src={src} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-muted/50" />}
             </div>
           );
         })
       ) : (
-        <div className="rounded-md bg-muted/50 flex items-center justify-center text-[10px] text-muted-foreground"
-          style={{ width: w, height: h }}>–</div>
+        <div className="rounded-md bg-muted/50 flex items-center justify-center text-[10px] text-muted-foreground" style={{ width: w, height: h }}>–</div>
       )}
     </div>
   );
@@ -726,10 +907,7 @@ function Checkbox({ checked, onClick }: { checked: boolean; onClick: (e: React.M
     <div
       onClick={onClick}
       className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all cursor-pointer shrink-0
-        ${checked
-          ? "bg-primary border-primary text-primary-foreground"
-          : "border-muted-foreground/40 bg-background/80 hover:border-primary/60"
-        }`}
+        ${checked ? "bg-primary border-primary text-primary-foreground" : "border-muted-foreground/40 bg-background/80 hover:border-primary/60"}`}
     >
       {checked && (
         <svg viewBox="0 0 10 8" className="w-3 h-3 fill-none stroke-current stroke-[1.8]">
@@ -752,20 +930,18 @@ function CarouselGridCard({
   onDragStart: () => void;
   onDragEnd: () => void;
 }) {
-  const isSent = !!c.sentAt;
   return (
     <div
       role="button"
       tabIndex={0}
       draggable
-      onDragStart={onDragStart}
+      onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; onDragStart(); }}
       onDragEnd={onDragEnd}
       className={`group relative flex flex-col rounded-2xl border bg-card overflow-hidden transition-all cursor-pointer hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
         ${selected ? "border-primary ring-1 ring-primary" : "hover:border-foreground/20"}`}
       onClick={onOpen}
       onKeyDown={(e) => e.key === "Enter" && onOpen()}
     >
-      {/* Checkbox */}
       <div
         className={`absolute top-2 left-2 z-10 transition-opacity ${selected ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
         onClick={onToggleSelect}
@@ -773,7 +949,6 @@ function CarouselGridCard({
         <Checkbox checked={selected} onClick={onToggleSelect} />
       </div>
 
-      {/* Three-dot */}
       <button
         className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 flex items-center justify-center rounded-lg bg-background/80 border backdrop-blur-sm hover:bg-background"
         onClick={onContextMenu}
@@ -781,24 +956,18 @@ function CarouselGridCard({
         <MoreHorizontal className="h-3.5 w-3.5" />
       </button>
 
-      {/* Slides strip */}
       <div className="p-2 pt-8 bg-muted/20">
         <SlideThumbs slides={c.slides} />
       </div>
 
-      {/* Footer */}
       <div className="p-3 flex flex-col gap-1.5">
         <div className="flex items-start justify-between gap-2">
-          <span className="text-2xl font-black font-mono leading-none tracking-wide">
-            {c.shortId ?? "—"}
-          </span>
-          {isSent && <SentPill />}
+          <span className="text-2xl font-black font-mono leading-none tracking-wide">{c.shortId ?? "—"}</span>
+          {!!c.sentAt && <SentPill />}
         </div>
         <p className="text-[11px] text-muted-foreground leading-snug truncate">{c.name}</p>
         <div className="text-[11px] text-muted-foreground leading-snug">
-          {c.sentToAccountName && (
-            <span className="font-medium text-foreground">@{c.sentToAccountName}</span>
-          )}
+          {c.sentToAccountName && <span className="font-medium text-foreground">@{c.sentToAccountName}</span>}
           {c.sentToAccountName && (c.appName || c.influencerName) && " · "}
           {[c.influencerName, c.appName].filter(Boolean).join(" × ")}
         </div>
@@ -819,13 +988,12 @@ function CarouselRowItem({
   onDragStart: () => void;
   onDragEnd: () => void;
 }) {
-  const isSent = !!c.sentAt;
   return (
     <div
       role="button"
       tabIndex={0}
       draggable
-      onDragStart={onDragStart}
+      onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; onDragStart(); }}
       onDragEnd={onDragEnd}
       className={`group flex items-center gap-3 rounded-xl border bg-card px-4 py-3 cursor-pointer transition-all hover:shadow-sm active:scale-[0.995] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
         ${selected ? "border-primary ring-1 ring-primary" : "hover:border-foreground/20"}`}
@@ -834,27 +1002,19 @@ function CarouselRowItem({
     >
       <Checkbox checked={selected} onClick={onToggleSelect} />
       <SlideThumbs slides={c.slides} small />
-
-      <span className="text-xl font-black font-mono tracking-wide shrink-0 w-14 leading-none">
-        {c.shortId ?? "—"}
-      </span>
-
+      <span className="text-xl font-black font-mono tracking-wide shrink-0 w-14 leading-none">{c.shortId ?? "—"}</span>
       <div className="flex-1 min-w-0">
         <p className="font-semibold text-sm truncate leading-tight">{c.name}</p>
         <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-          {c.sentToAccountName && (
-            <span className="font-medium text-foreground">@{c.sentToAccountName} · </span>
-          )}
+          {c.sentToAccountName && <span className="font-medium text-foreground">@{c.sentToAccountName} · </span>}
           {[c.influencerName, c.appName].filter(Boolean).join(" × ")}
         </p>
       </div>
-
-      {isSent ? <SentPill /> : (
+      {!!c.sentAt ? <SentPill /> : (
         <span className="shrink-0 text-[10px] bg-muted text-muted-foreground rounded-full px-2 py-0.5 font-medium leading-tight">
           Pendiente
         </span>
       )}
-
       <button
         className="opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7 flex items-center justify-center rounded-lg border bg-background hover:bg-muted/60 shrink-0"
         onClick={onContextMenu}

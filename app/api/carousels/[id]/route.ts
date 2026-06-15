@@ -61,6 +61,7 @@ export async function PATCH(
   const patch: Record<string, unknown> = { updatedAt: now() };
   if ("folderId" in body) patch.folderId = body.folderId ?? null;
   if ("name" in body) patch.name = body.name;
+  if ("archivedAt" in body) patch.archivedAt = body.archivedAt ?? null;
 
   const [updated] = await db
     .update(carousels)
