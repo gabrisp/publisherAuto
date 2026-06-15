@@ -54,9 +54,7 @@ export function NavSidebar() {
 
   return (
     <aside className="hidden md:flex h-screen w-56 flex-col border-r bg-background">
-      <div className="border-b px-4 py-4">
-        <span className="text-lg font-bold tracking-tight">PlataformaAUTO</span>
-      </div>
+
       <nav className="flex-1 space-y-1 p-3">
         {links.map(({ href, label, icon: Icon }) => (
           <Link
