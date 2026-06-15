@@ -286,22 +286,11 @@ export default function CarouselsPage() {
   const isDragging = !!draggingCarouselId;
 
   return (
-    <div className="space-y-5 pb-24 pt-4 md:pt-6">
+    <div className="flex flex-col gap-6 pb-24 pt-4 md:pt-6">
 
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Carousels</h1>
-          {activeFolderName && (
-            <button
-              onClick={() => setActiveFolder(null)}
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors mt-0.5 flex items-center gap-1"
-            >
-              <X className="h-3 w-3" />
-              {activeFolderName}
-            </button>
-          )}
-        </div>
+        <h1 className="text-2xl font-bold">Carousels</h1>
         <button
           onClick={() => setShowImport(true)}
           className="h-9 w-9 flex items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm active:scale-95 transition-transform"
@@ -310,153 +299,156 @@ export default function CarouselsPage() {
         </button>
       </div>
 
-      {/* ── Folder strip ── */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-0.5 -mb-1" style={{ scrollbarWidth: "none" }}>
-        {folders.map((f) => {
-          const isActive = activeFolder === f.id;
-          const isDropTarget = dragOverFolderId === f.id;
-          return (
-            <div
-              key={f.id}
-              className={`group relative shrink-0 flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-all cursor-pointer select-none
-                ${isActive
-                  ? "bg-foreground text-background border-foreground"
-                  : isDropTarget
-                  ? "border-dashed border-2 border-primary bg-primary/10 text-primary scale-105"
-                  : isDragging
-                  ? "border-dashed border-muted-foreground/40 hover:border-primary hover:bg-primary/5 hover:text-primary"
-                  : "bg-background hover:bg-muted/40 border-muted-foreground/20"
-                }`}
-              onClick={() => !renamingFolderId && setActiveFolder(isActive ? null : f.id)}
-              onDragOver={(e) => { e.preventDefault(); setDragOverFolderId(f.id); }}
-              onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverFolderId(null); }}
-              onDrop={(e) => { e.preventDefault(); handleDropOnFolder(f.id); }}
-            >
-              <Folder className="h-3.5 w-3.5 shrink-0" />
-              {renamingFolderId === f.id ? (
-                <input
-                  ref={renamingRef}
-                  value={renamingName}
-                  onChange={(e) => setRenamingName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") renameFolder();
-                    if (e.key === "Escape") setRenamingFolderId(null);
-                    e.stopPropagation();
-                  }}
-                  onBlur={renameFolder}
-                  onClick={(e) => e.stopPropagation()}
-                  className="bg-transparent outline-none w-24 text-sm"
-                />
-              ) : (
-                <span className="font-medium leading-none">{f.name}</span>
-              )}
-              <span className={`text-[11px] leading-none tabular-nums ${isActive ? "opacity-70" : "opacity-50"}`}>
-                {f.carouselCount}
-              </span>
-              {!isDragging && renamingFolderId !== f.id && (
-                <button
-                  className={`transition-opacity ${isActive ? "opacity-70 hover:opacity-100" : "opacity-0 group-hover:opacity-60 hover:!opacity-100"} ml-0.5`}
-                  onClick={(e) => openFolderMenu(f.id, e)}
-                >
-                  <MoreHorizontal className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-          );
-        })}
+      {/* ── Controls block: toolbar + folder strip ── */}
+      <div className="flex flex-col gap-2.5">
 
-        {showNewFolder ? (
-          <div className="shrink-0 flex items-center gap-1.5 rounded-full border border-primary px-3 py-1.5">
-            <Folder className="h-3.5 w-3.5 shrink-0 text-primary" />
+        {/* Toolbar */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="relative flex-1 min-w-52">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
             <input
-              ref={newFolderRef}
-              value={newFolderName}
-              onChange={(e) => setNewFolderName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") createFolder();
-                if (e.key === "Escape") { setShowNewFolder(false); setNewFolderName(""); }
-              }}
-              onBlur={() => newFolderName.trim() ? createFolder() : (setShowNewFolder(false))}
-              placeholder="Nueva carpeta"
-              className="bg-transparent outline-none text-sm w-28"
-              disabled={savingFolder}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar por ID, nombre, cuenta…"
+              className="w-full rounded-lg border bg-background pl-8 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             />
+            {search && (
+              <button onClick={() => setSearch("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
-        ) : (
-          <button
-            onClick={() => setShowNewFolder(true)}
-            className="shrink-0 flex items-center gap-1 rounded-full border border-dashed border-muted-foreground/25 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:border-muted-foreground/50 transition-colors"
-          >
-            <Plus className="h-3 w-3" />
-            {folders.length === 0 ? "Nueva carpeta" : ""}
-          </button>
+
+          <div className="flex gap-1 rounded-lg border p-1 bg-muted/30">
+            {(["pending", "sent", "all"] as FilterVal[]).map((f) => (
+              <button key={f} onClick={() => setFilter(f)}
+                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                  filter === f ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+                }`}>
+                {f === "pending" ? `Pendientes (${counts.pending})` : f === "sent" ? `Enviados (${counts.sent})` : `Todos (${counts.all})`}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex gap-0.5 rounded-lg border p-1 bg-muted/30">
+            {(["grid", "row"] as ViewMode[]).map((v) => (
+              <button key={v} onClick={() => setView(v)} title={v === "grid" ? "Grid" : "Lista"}
+                className={`p-1.5 rounded-md transition-colors ${view === v ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+                {v === "grid" ? <LayoutGrid className="h-3.5 w-3.5" /> : <List className="h-3.5 w-3.5" />}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Secondary filters */}
+        {(appOptions.length > 1 || influencerOptions.length > 1) && (
+          <div className="flex items-center gap-2 flex-wrap">
+            {appOptions.length > 1 && (
+              <select value={filterApp} onChange={(e) => setFilterApp(e.target.value)}
+                className="rounded-lg border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring">
+                <option value="">Todos los apps</option>
+                {appOptions.map((a) => <option key={a} value={a}>{a}</option>)}
+              </select>
+            )}
+            {influencerOptions.length > 1 && (
+              <select value={filterInfluencer} onChange={(e) => setFilterInfluencer(e.target.value)}
+                className="rounded-lg border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring">
+                <option value="">Todos los influencers</option>
+                {influencerOptions.map((i) => <option key={i} value={i}>{i}</option>)}
+              </select>
+            )}
+            {(filterApp || filterInfluencer) && (
+              <button onClick={() => { setFilterApp(""); setFilterInfluencer(""); }}
+                className="text-xs text-muted-foreground hover:text-foreground px-2 py-1.5 rounded-lg hover:bg-muted/50 transition-colors">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
         )}
-      </div>
 
-      {/* Toolbar */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-52">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por ID, nombre, cuenta…"
-            className="w-full rounded-lg border bg-background pl-8 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-          {search && (
-            <button onClick={() => setSearch("")}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-              <X className="h-3.5 w-3.5" />
+        {/* Folder strip — always rendered */}
+        <div className="flex items-center gap-1.5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+          {folders.map((f) => {
+            const isActive = activeFolder === f.id;
+            const isDropTarget = dragOverFolderId === f.id;
+            return (
+              <div
+                key={f.id}
+                className={`group relative shrink-0 flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all cursor-pointer select-none
+                  ${isActive
+                    ? "bg-foreground text-background border-foreground"
+                    : isDropTarget
+                    ? "border-dashed border-2 border-primary bg-primary/10 text-primary scale-105"
+                    : isDragging
+                    ? "border-dashed border-muted-foreground/30 hover:border-primary hover:bg-primary/5 hover:text-primary"
+                    : "bg-muted/30 hover:bg-muted/60 border-transparent hover:border-muted-foreground/20 text-muted-foreground hover:text-foreground"
+                  }`}
+                onClick={() => !renamingFolderId && setActiveFolder(isActive ? null : f.id)}
+                onDragOver={(e) => { e.preventDefault(); setDragOverFolderId(f.id); }}
+                onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverFolderId(null); }}
+                onDrop={(e) => { e.preventDefault(); handleDropOnFolder(f.id); }}
+              >
+                <Folder className="h-3 w-3 shrink-0" />
+                {renamingFolderId === f.id ? (
+                  <input
+                    ref={renamingRef}
+                    value={renamingName}
+                    onChange={(e) => setRenamingName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") renameFolder();
+                      if (e.key === "Escape") setRenamingFolderId(null);
+                      e.stopPropagation();
+                    }}
+                    onBlur={renameFolder}
+                    onClick={(e) => e.stopPropagation()}
+                    className="bg-transparent outline-none w-24 text-xs"
+                  />
+                ) : (
+                  <span className="leading-none">{f.name}</span>
+                )}
+                <span className="opacity-50 leading-none tabular-nums">{f.carouselCount}</span>
+                {!isDragging && renamingFolderId !== f.id && (
+                  <button
+                    className="opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity ml-0.5"
+                    onClick={(e) => openFolderMenu(f.id, e)}
+                  >
+                    <MoreHorizontal className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+            );
+          })}
+
+          {showNewFolder ? (
+            <div className="shrink-0 flex items-center gap-1.5 rounded-full border border-primary/50 bg-primary/5 px-2.5 py-1">
+              <Folder className="h-3 w-3 shrink-0 text-primary" />
+              <input
+                ref={newFolderRef}
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") createFolder();
+                  if (e.key === "Escape") { setShowNewFolder(false); setNewFolderName(""); }
+                }}
+                onBlur={() => newFolderName.trim() ? createFolder() : setShowNewFolder(false)}
+                placeholder="Nombre…"
+                className="bg-transparent outline-none text-xs w-24"
+                disabled={savingFolder}
+              />
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowNewFolder(true)}
+              className="shrink-0 flex items-center gap-1 rounded-full px-2.5 py-1 text-xs text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/40 transition-colors"
+            >
+              <Plus className="h-3 w-3" />
+              Carpeta
             </button>
           )}
         </div>
 
-        <div className="flex gap-1 rounded-lg border p-1 bg-muted/30">
-          {(["pending", "sent", "all"] as FilterVal[]).map((f) => (
-            <button key={f} onClick={() => setFilter(f)}
-              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                filter === f ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
-              }`}>
-              {f === "pending" ? `Pendientes (${counts.pending})` : f === "sent" ? `Enviados (${counts.sent})` : `Todos (${counts.all})`}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex gap-0.5 rounded-lg border p-1 bg-muted/30">
-          {(["grid", "row"] as ViewMode[]).map((v) => (
-            <button key={v} onClick={() => setView(v)} title={v === "grid" ? "Grid" : "Lista"}
-              className={`p-1.5 rounded-md transition-colors ${view === v ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
-              {v === "grid" ? <LayoutGrid className="h-3.5 w-3.5" /> : <List className="h-3.5 w-3.5" />}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Secondary filters */}
-      {(appOptions.length > 1 || influencerOptions.length > 1) && (
-        <div className="flex items-center gap-2 flex-wrap -mt-1">
-          {appOptions.length > 1 && (
-            <select value={filterApp} onChange={(e) => setFilterApp(e.target.value)}
-              className="rounded-lg border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring">
-              <option value="">Todos los apps</option>
-              {appOptions.map((a) => <option key={a} value={a}>{a}</option>)}
-            </select>
-          )}
-          {influencerOptions.length > 1 && (
-            <select value={filterInfluencer} onChange={(e) => setFilterInfluencer(e.target.value)}
-              className="rounded-lg border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring">
-              <option value="">Todos los influencers</option>
-              {influencerOptions.map((i) => <option key={i} value={i}>{i}</option>)}
-            </select>
-          )}
-          {(filterApp || filterInfluencer) && (
-            <button onClick={() => { setFilterApp(""); setFilterInfluencer(""); }}
-              className="text-xs text-muted-foreground hover:text-foreground px-2 py-1.5 rounded-lg hover:bg-muted/50 transition-colors">
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
-      )}
+      </div>{/* end controls block */}
 
       {/* Grid / List */}
       {filtered.length === 0 ? (
