@@ -564,19 +564,19 @@ export default function CarouselDetailPage() {
                     <span className="text-[11px] font-bold uppercase tracking-wider text-primary">
                       SLIDE {slide.order + 1}
                     </span>
-                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-1">
                       {isEditing ? (
                         <>
                           <button
                             disabled={savingText}
-                            onClick={saveSlideTexts}
+                            onClick={(e) => { e.stopPropagation(); saveSlideTexts(); }}
                             className="flex items-center gap-1 h-6 px-2 rounded-md text-[10px] font-medium bg-primary text-primary-foreground disabled:opacity-50"
                           >
                             <Check className="h-2.5 w-2.5" />
                             {savingText ? "…" : "Guardar"}
                           </button>
                           <button
-                            onClick={() => setEditingSlideId(null)}
+                            onClick={(e) => { e.stopPropagation(); setEditingSlideId(null); }}
                             className="h-6 px-1.5 rounded-md text-[10px] text-muted-foreground hover:text-foreground hover:bg-muted/60"
                           >
                             <X className="h-3 w-3" />
@@ -593,7 +593,8 @@ export default function CarouselDetailPage() {
                             <Copy className="h-2.5 w-2.5 mr-0.5" />Copiar
                           </Button>
                           <button
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               setEditingSlideId(slide.id);
                               setEditingTexts(texts.length > 0 ? texts : [{ id: "t0", content: "" }]);
                             }}
