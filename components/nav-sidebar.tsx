@@ -15,6 +15,7 @@ import {
   BarChart2,
   CalendarDays,
   Music2,
+  CalendarRange,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Sun, Moon } from "lucide-react";
@@ -23,6 +24,7 @@ import { getSupabaseBrowser } from "@/lib/supabase-browser";
 const links = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/hoy", label: "Hoy", icon: CalendarDays },
+  { href: "/schedule", label: "Programación", icon: CalendarRange },
   { href: "/carousels", label: "Carousels", icon: Film },
   { href: "/users", label: "Usuarios", icon: UserCircle },
   { href: "/tiktok", label: "TikTok", icon: Music2 },
