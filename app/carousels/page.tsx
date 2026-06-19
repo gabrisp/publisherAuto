@@ -8,7 +8,7 @@ import {
   FileJson, ClipboardPaste, Folder, FolderOpen, MoreHorizontal,
   ChevronRight, Copy, MoveRight, Pencil, FolderInput, Archive,
   ArchiveRestore, Calendar, ArrowUpDown, Loader2, MousePointer2,
-  UserCircle,
+  UserCircle, Clock, CalendarOff, SendHorizonal,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -80,6 +80,8 @@ export default function CarouselsPage() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<FilterVal>("all");
   const [filterAssigned, setFilterAssigned] = useState<"all" | "assigned" | "unassigned">("all");
+  const [filterTiktokAccount, setFilterTiktokAccount] = useState<string>("");
+  const [filterDateStatus, setFilterDateStatus] = useState<"all" | "with_date" | "without_date">("all");
   const [sortBy, setSortBy] = useState<SortBy>("created");
   const [filterApp, setFilterApp] = useState("");
   const [filterInfluencer, setFilterInfluencer] = useState("");
@@ -116,6 +118,10 @@ export default function CarouselsPage() {
   /* bulk move popup */
   const [bulkMoveOpen, setBulkMoveOpen] = useState(false);
   const [bulkAssignOpen, setBulkAssignOpen] = useState(false);
+  const [bulkDateOpen, setBulkDateOpen] = useState(false);
+  const [bulkTimeOpen, setBulkTimeOpen] = useState(false);
+  const [bulkDateVal, setBulkDateVal] = useState("");
+  const [bulkTimeVal, setBulkTimeVal] = useState("");
 
   /* import modal */
   const [showImport, setShowImport] = useState(false);
@@ -128,12 +134,14 @@ export default function CarouselsPage() {
 
   /* close menus on outside click — BUBBLE phase so stopPropagation inside menus works */
   useEffect(() => {
-    if (!contextMenu && !folderMenu && !bulkMoveOpen && !bulkAssignOpen) return;
+    if (!contextMenu && !folderMenu && !bulkMoveOpen && !bulkAssignOpen && !bulkDateOpen && !bulkTimeOpen) return;
     const close = () => {
       setContextMenu(null);
       setFolderMenu(null);
       setBulkMoveOpen(false);
       setBulkAssignOpen(false);
+      setBulkDateOpen(false);
+      setBulkTimeOpen(false);
     };
     document.addEventListener("click", close);
     return () => document.removeEventListener("click", close);
@@ -338,6 +346,48 @@ export default function CarouselsPage() {
     toast.success(accountId ? `Asignados a @${sentToAccountName}` : "Cuenta eliminada de los seleccionados");
   }
 
+  async function handleBulkDate(date: string | null) {
+    setBulkDateOpen(false);
+    const ids = [...selected];
+    mutate((prev) => prev?.map((c) => ids.includes(c.id) ? { ...c, scheduledDate: date } : c), false);
+    await Promise.all(ids.map((id) =>
+      fetch(`/api/carousels/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scheduledDate: date }),
+      })
+    ));
+    toast.success(date ? `Fecha asignada: ${date}` : "Fecha eliminada");
+  }
+
+  async function handleBulkTime(time: string | null) {
+    setBulkTimeOpen(false);
+    const ids = [...selected];
+    mutate((prev) => prev?.map((c) => ids.includes(c.id) ? { ...c, scheduledTime: time } : c), false);
+    await Promise.all(ids.map((id) =>
+      fetch(`/api/carousels/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scheduledTime: time }),
+      })
+    ));
+    toast.success(time ? `Hora asignada: ${time}` : "Hora eliminada");
+  }
+
+  async function handleBulkDraft(markAsDraft: boolean) {
+    const ids = [...selected];
+    const sentAt = markAsDraft ? Math.floor(Date.now() / 1000) : null;
+    mutate((prev) => prev?.map((c) => ids.includes(c.id) ? { ...c, sentAt } : c), false);
+    await Promise.all(ids.map((id) =>
+      fetch(`/api/carousels/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sentAt }),
+      })
+    ));
+    toast.success(markAsDraft ? "Marcados como draft" : "Draft eliminado");
+  }
+
   /* ── Draft ── */
   async function toggleDraft(carouselId: string, markAsDraft: boolean) {
     setContextMenu(null);
@@ -457,6 +507,9 @@ export default function CarouselsPage() {
     if (filterInfluencer) rows = rows.filter((c) => c.influencerName === filterInfluencer);
     if (filterAssigned === "assigned") rows = rows.filter((c) => !!c.publisherUserId);
     if (filterAssigned === "unassigned") rows = rows.filter((c) => !c.publisherUserId);
+    if (filterTiktokAccount) rows = rows.filter((c) => c.sentToAccountName === filterTiktokAccount);
+    if (filterDateStatus === "with_date") rows = rows.filter((c) => !!c.scheduledDate);
+    if (filterDateStatus === "without_date") rows = rows.filter((c) => !c.scheduledDate);
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       rows = rows.filter((c) =>
@@ -468,7 +521,7 @@ export default function CarouselsPage() {
       );
     }
     return rows;
-  }, [all, activeFolder, filter, filterApp, filterInfluencer, filterAssigned, search]);
+  }, [all, activeFolder, filter, filterApp, filterInfluencer, filterAssigned, filterTiktokAccount, filterDateStatus, search]);
 
   const sorted = useMemo(() => {
     if (sortBy === "scheduled") {
@@ -624,15 +677,26 @@ export default function CarouselsPage() {
               </select>
             )}
             {tiktokAccounts.length > 0 && (
-              <select value={filterAssigned} onChange={(e) => setFilterAssigned(e.target.value as "all" | "assigned" | "unassigned")}
+              <select value={filterTiktokAccount} onChange={(e) => setFilterTiktokAccount(e.target.value)}
                 className="rounded-lg border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
-                <option value="all">Todos (asignados)</option>
-                <option value="assigned">Asignados</option>
-                <option value="unassigned">Sin asignar</option>
+                <option value="">Todas las cuentas</option>
+                {tiktokAccounts.map((a) => <option key={a.id} value={a.name}>@{a.name}</option>)}
               </select>
             )}
-            {(filterApp || filterInfluencer || filterAssigned !== "all") && (
-              <button onClick={() => { setFilterApp(""); setFilterInfluencer(""); setFilterAssigned("all"); }}
+            <select value={filterAssigned} onChange={(e) => setFilterAssigned(e.target.value as "all" | "assigned" | "unassigned")}
+              className="rounded-lg border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+              <option value="all">Todos (usuario)</option>
+              <option value="assigned">Con usuario</option>
+              <option value="unassigned">Sin usuario</option>
+            </select>
+            <select value={filterDateStatus} onChange={(e) => setFilterDateStatus(e.target.value as "all" | "with_date" | "without_date")}
+              className="rounded-lg border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+              <option value="all">Todas las fechas</option>
+              <option value="with_date">Con fecha</option>
+              <option value="without_date">Sin fecha</option>
+            </select>
+            {(filterApp || filterInfluencer || filterAssigned !== "all" || filterTiktokAccount || filterDateStatus !== "all") && (
+              <button onClick={() => { setFilterApp(""); setFilterInfluencer(""); setFilterAssigned("all"); setFilterTiktokAccount(""); setFilterDateStatus("all"); }}
                 className="text-xs text-muted-foreground hover:text-foreground px-2 py-1.5 rounded-lg hover:bg-muted/50">
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -1206,6 +1270,99 @@ export default function CarouselsPage() {
               )}
             </div>
           )}
+
+          {/* Fecha */}
+          <div className="relative">
+            <button
+              onClick={(e) => { e.stopPropagation(); setBulkDateOpen((o) => !o); setBulkMoveOpen(false); setBulkAssignOpen(false); setBulkTimeOpen(false); }}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-lg hover:bg-muted/50 transition-colors"
+            >
+              <Calendar className="h-3.5 w-3.5" />
+              Fecha
+            </button>
+            {bulkDateOpen && (
+              <div
+                className="absolute bottom-full mb-2 left-0 bg-background border shadow-2xl rounded-xl p-3 z-[110] min-w-52"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <p className="text-xs text-muted-foreground mb-2 font-medium">Fecha programada</p>
+                <input
+                  type="date"
+                  value={bulkDateVal}
+                  onChange={(e) => setBulkDateVal(e.target.value)}
+                  className="w-full rounded-lg border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring mb-2"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { if (bulkDateVal) handleBulkDate(bulkDateVal); }}
+                    disabled={!bulkDateVal}
+                    className="flex-1 flex items-center justify-center gap-1.5 text-xs bg-primary text-primary-foreground rounded-lg px-3 py-1.5 disabled:opacity-40"
+                  >
+                    <SendHorizonal className="h-3.5 w-3.5" />
+                    Aplicar
+                  </button>
+                  <button
+                    onClick={() => handleBulkDate(null)}
+                    className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground hover:text-foreground rounded-lg px-3 py-1.5 border hover:bg-muted/50"
+                  >
+                    <CalendarOff className="h-3.5 w-3.5" />
+                    Quitar
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Hora */}
+          <div className="relative">
+            <button
+              onClick={(e) => { e.stopPropagation(); setBulkTimeOpen((o) => !o); setBulkMoveOpen(false); setBulkAssignOpen(false); setBulkDateOpen(false); }}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-lg hover:bg-muted/50 transition-colors"
+            >
+              <Clock className="h-3.5 w-3.5" />
+              Hora
+            </button>
+            {bulkTimeOpen && (
+              <div
+                className="absolute bottom-full mb-2 left-0 bg-background border shadow-2xl rounded-xl p-3 z-[110] min-w-44"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <p className="text-xs text-muted-foreground mb-2 font-medium">Hora de publicación</p>
+                <input
+                  type="time"
+                  value={bulkTimeVal}
+                  onChange={(e) => setBulkTimeVal(e.target.value)}
+                  className="w-full rounded-lg border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring mb-2"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { if (bulkTimeVal) handleBulkTime(bulkTimeVal); }}
+                    disabled={!bulkTimeVal}
+                    className="flex-1 flex items-center justify-center gap-1.5 text-xs bg-primary text-primary-foreground rounded-lg px-3 py-1.5 disabled:opacity-40"
+                  >
+                    <SendHorizonal className="h-3.5 w-3.5" />
+                    Aplicar
+                  </button>
+                  <button
+                    onClick={() => handleBulkTime(null)}
+                    className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground hover:text-foreground rounded-lg px-3 py-1.5 border hover:bg-muted/50"
+                  >
+                    <X className="h-3 w-3" />
+                    Quitar
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Draft */}
+          <button
+            onClick={() => handleBulkDraft(true)}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-lg hover:bg-muted/50 transition-colors"
+          >
+            <SendHorizonal className="h-3.5 w-3.5" />
+            Draft
+          </button>
 
           {/* Archive / Unarchive */}
           {showArchived ? (
