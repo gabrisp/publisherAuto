@@ -115,6 +115,7 @@ export default function CarouselsPage() {
 
   /* bulk move popup */
   const [bulkMoveOpen, setBulkMoveOpen] = useState(false);
+  const [bulkAssignOpen, setBulkAssignOpen] = useState(false);
 
   /* import modal */
   const [showImport, setShowImport] = useState(false);
@@ -127,15 +128,16 @@ export default function CarouselsPage() {
 
   /* close menus on outside click — BUBBLE phase so stopPropagation inside menus works */
   useEffect(() => {
-    if (!contextMenu && !folderMenu && !bulkMoveOpen) return;
+    if (!contextMenu && !folderMenu && !bulkMoveOpen && !bulkAssignOpen) return;
     const close = () => {
       setContextMenu(null);
       setFolderMenu(null);
       setBulkMoveOpen(false);
+      setBulkAssignOpen(false);
     };
     document.addEventListener("click", close);
     return () => document.removeEventListener("click", close);
-  }, [contextMenu, folderMenu, bulkMoveOpen]);
+  }, [contextMenu, folderMenu, bulkMoveOpen, bulkAssignOpen]);
 
   useEffect(() => {
     if (showNewFolder) setTimeout(() => newFolderRef.current?.focus(), 50);
@@ -313,6 +315,27 @@ export default function CarouselsPage() {
       })
     ));
     mutateFolders();
+  }
+
+  async function handleBulkAssign(accountId: string | null) {
+    setBulkAssignOpen(false);
+    const ids = [...selected];
+    const sentToAccountName = accountId
+      ? tiktokAccounts.find((a) => a.id === accountId)?.name ?? null
+      : null;
+    mutate(
+      (prev) => prev?.map((c) => ids.includes(c.id) ? { ...c, sentToAccountId: accountId, sentToAccountName } : c),
+      false
+    );
+    await Promise.all(ids.map((id) =>
+      fetch(`/api/carousels/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sentToAccountId: accountId }),
+      })
+    ));
+    mutate();
+    toast.success(accountId ? `Asignados a @${sentToAccountName}` : "Cuenta eliminada de los seleccionados");
   }
 
   /* ── Draft ── */
@@ -1139,6 +1162,44 @@ export default function CarouselsPage() {
                     >
                       <Folder className="h-3.5 w-3.5" />
                       {f.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Asignar cuenta */}
+          {tiktokAccounts.length > 0 && (
+            <div className="relative">
+              <button
+                onClick={(e) => { e.stopPropagation(); setBulkAssignOpen((o) => !o); setBulkMoveOpen(false); setContextMenu(null); setFolderMenu(null); }}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-lg hover:bg-muted/50 transition-colors"
+              >
+                <UserCircle className="h-3.5 w-3.5" />
+                Cuenta
+              </button>
+              {bulkAssignOpen && (
+                <div
+                  className="absolute bottom-full mb-2 left-0 bg-background border shadow-2xl rounded-xl overflow-hidden min-w-44 py-1 z-[110]"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button
+                    className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-muted/60"
+                    onClick={(e) => { e.stopPropagation(); handleBulkAssign(null); }}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    Sin asignar
+                  </button>
+                  <div className="border-t my-1" />
+                  {tiktokAccounts.map((acc) => (
+                    <button
+                      key={acc.id}
+                      className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-muted/60"
+                      onClick={(e) => { e.stopPropagation(); handleBulkAssign(acc.id); }}
+                    >
+                      <UserCircle className="h-3.5 w-3.5" />
+                      @{acc.name}
                     </button>
                   ))}
                 </div>
