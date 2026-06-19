@@ -12,6 +12,7 @@ type Slide = {
   order: number;
   generatedImagePath: string | null;
   imagePath: string | null;
+  texts?: string;
 };
 
 type Carousel = {
@@ -27,6 +28,18 @@ type Carousel = {
 };
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
+
+type TextEl = { id: string; content: string };
+
+function parseTexts(json?: string | null): TextEl[] {
+  if (!json) return [];
+  try {
+    const parsed = JSON.parse(json);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
 
 function fmtDayHeader(dateStr: string) {
   const [y, m, d] = dateStr.split("-").map(Number);
@@ -338,50 +351,71 @@ export default function SchedulePage() {
 
       {/* Preview modal */}
       <Dialog open={!!preview} onOpenChange={(o) => { if (!o) setPreview(null); }}>
-        <DialogContent className="sm:max-w-md p-0 overflow-hidden" showCloseButton={false}>
+        <DialogContent className="sm:max-w-2xl p-0 overflow-hidden" showCloseButton={false}>
           {preview && (() => {
             const slides = [...(preview.slides ?? [])].sort((a, b) => a.order - b.order);
             const cur = slides[slideIdx];
             const src = cur?.generatedImagePath ?? cur?.imagePath;
+            const slideText = parseTexts(cur?.texts)
+              .map((item) => item.content?.trim())
+              .filter(Boolean)
+              .join("\n\n");
             return (
               <>
                 <DialogTitle className="sr-only">{preview.name}</DialogTitle>
                 <div className="flex flex-col">
                   {/* Slide viewer */}
-                  <div className="relative bg-black" style={{ aspectRatio: "9/16", maxHeight: "55vh" }}>
-                    {src ? (
-                      <img src={src} alt="" className="w-full h-full object-contain" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <Film className="h-10 w-10 text-white/20" />
+                  <div className="bg-neutral-950 px-4 py-5 sm:px-6">
+                    <div className="mx-auto w-full max-w-[360px]">
+                      <div className="relative overflow-hidden rounded-[28px] bg-black shadow-2xl" style={{ aspectRatio: "9/16" }}>
+                        {src ? (
+                          <img src={src} alt="" className="absolute inset-0 h-full w-full object-cover" />
+                        ) : (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <Film className="h-10 w-10 text-white/20" />
+                          </div>
+                        )}
+
+                        <div className="absolute inset-0 bg-black/18" />
+                        <div className="absolute inset-0 flex items-center justify-center p-7 text-center">
+                          {slideText ? (
+                            <div className="max-w-[82%] rounded-2xl bg-black/30 px-4 py-3 backdrop-blur-[2px]">
+                              <p className="whitespace-pre-wrap text-[clamp(18px,2.4vw,26px)] font-semibold leading-tight text-white [text-shadow:0_2px_18px_rgba(0,0,0,0.6)]">
+                                {slideText}
+                              </p>
+                            </div>
+                          ) : null}
+                        </div>
+
+                        {slides.length > 1 && (
+                          <>
+                            <button
+                              onClick={() => setSlideIdx((i) => Math.max(0, i - 1))}
+                              disabled={slideIdx === 0}
+                              className="absolute left-3 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/50 p-1.5 text-white disabled:opacity-20"
+                            >
+                              <ChevronLeft className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => setSlideIdx((i) => Math.min(slides.length - 1, i + 1))}
+                              disabled={slideIdx === slides.length - 1}
+                              className="absolute right-3 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/50 p-1.5 text-white disabled:opacity-20"
+                            >
+                              <ChevronRight className="h-4 w-4" />
+                            </button>
+                            <span className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full bg-black/60 px-2.5 py-1 text-[10px] text-white">
+                              {slideIdx + 1}/{slides.length}
+                            </span>
+                          </>
+                        )}
+
+                        {preview.publishedAt && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                            <CheckCircle className="h-10 w-10 text-white drop-shadow-lg" />
+                          </div>
+                        )}
                       </div>
-                    )}
-                    {slides.length > 1 && (
-                      <>
-                        <button
-                          onClick={() => setSlideIdx((i) => Math.max(0, i - 1))}
-                          disabled={slideIdx === 0}
-                          className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 text-white rounded-full p-1 disabled:opacity-20"
-                        >
-                          <ChevronLeft className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => setSlideIdx((i) => Math.min(slides.length - 1, i + 1))}
-                          disabled={slideIdx === slides.length - 1}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 text-white rounded-full p-1 disabled:opacity-20"
-                        >
-                          <ChevronRight className="h-4 w-4" />
-                        </button>
-                        <span className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/60 text-white text-[10px] rounded-full px-2 py-0.5">
-                          {slideIdx + 1}/{slides.length}
-                        </span>
-                      </>
-                    )}
-                    {preview.publishedAt && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                        <CheckCircle className="h-10 w-10 text-white drop-shadow-lg" />
-                      </div>
-                    )}
+                    </div>
                   </div>
 
                   {/* Info + actions */}
