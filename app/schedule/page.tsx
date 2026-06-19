@@ -63,6 +63,12 @@ function CoverCard({
       className={`group relative shrink-0 w-[88px] rounded-xl overflow-hidden bg-muted border cursor-grab active:cursor-grabbing transition-opacity select-none ${dragging ? "opacity-30" : "hover:ring-2 hover:ring-primary/50"}`}
       style={{ aspectRatio: "9/16" }}
     >
+      {/* Hover title popover */}
+      <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-[calc(100%+6px)] z-50 hidden group-hover:flex">
+        <div className="bg-popover text-popover-foreground text-[11px] font-medium rounded-lg px-2.5 py-1.5 shadow-lg border whitespace-nowrap max-w-[200px] truncate">
+          {c.name}
+        </div>
+      </div>
       {src ? (
         <img src={src} alt={c.name} className="w-full h-full object-cover" />
       ) : (
