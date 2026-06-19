@@ -3,8 +3,9 @@
 import { useMemo, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
-import { Film, ChevronUp, ChevronDown, CheckCircle } from "lucide-react";
+import { Film, ChevronUp, ChevronDown, CheckCircle, ExternalLink, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
 type Slide = {
   id: string;
@@ -104,8 +105,10 @@ export default function SchedulePage() {
 
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [dropTarget, setDropTarget] = useState<string | null>(null); // date string or "__tray"
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [trayOpen, setTrayOpen] = useState(true);
+  const [preview, setPreview] = useState<Carousel | null>(null);
+  const [slideIdx, setSlideIdx] = useState(0);
   const dragCounter = useRef<Record<string, number>>({});
 
   // Always show today + 7 days, plus any other dates that have carousels
@@ -277,7 +280,7 @@ export default function SchedulePage() {
                           dragging={draggingId === c.id}
                           onDragStart={() => setDraggingId(c.id)}
                           onDragEnd={() => { setDraggingId(null); setDropTarget(null); }}
-                          onClick={() => router.push(`/carousels/${c.id}`)}
+                          onClick={() => { setPreview(c); setSlideIdx(0); }}
                         />
                       ))}
                       {/* Drop placeholder */}
@@ -325,13 +328,95 @@ export default function SchedulePage() {
                   dragging={draggingId === c.id}
                   onDragStart={() => setDraggingId(c.id)}
                   onDragEnd={() => { setDraggingId(null); setDropTarget(null); }}
-                  onClick={() => router.push(`/carousels/${c.id}`)}
+                  onClick={() => { setPreview(c); setSlideIdx(0); }}
                 />
               ))}
             </div>
           )}
         </div>
       )}
+
+      {/* Preview modal */}
+      <Dialog open={!!preview} onOpenChange={(o) => { if (!o) setPreview(null); }}>
+        <DialogContent className="sm:max-w-md p-0 overflow-hidden" showCloseButton={false}>
+          {preview && (() => {
+            const slides = [...(preview.slides ?? [])].sort((a, b) => a.order - b.order);
+            const cur = slides[slideIdx];
+            const src = cur?.generatedImagePath ?? cur?.imagePath;
+            return (
+              <>
+                <DialogTitle className="sr-only">{preview.name}</DialogTitle>
+                <div className="flex flex-col">
+                  {/* Slide viewer */}
+                  <div className="relative bg-black" style={{ aspectRatio: "9/16", maxHeight: "55vh" }}>
+                    {src ? (
+                      <img src={src} alt="" className="w-full h-full object-contain" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Film className="h-10 w-10 text-white/20" />
+                      </div>
+                    )}
+                    {slides.length > 1 && (
+                      <>
+                        <button
+                          onClick={() => setSlideIdx((i) => Math.max(0, i - 1))}
+                          disabled={slideIdx === 0}
+                          className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 text-white rounded-full p-1 disabled:opacity-20"
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => setSlideIdx((i) => Math.min(slides.length - 1, i + 1))}
+                          disabled={slideIdx === slides.length - 1}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 text-white rounded-full p-1 disabled:opacity-20"
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </button>
+                        <span className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/60 text-white text-[10px] rounded-full px-2 py-0.5">
+                          {slideIdx + 1}/{slides.length}
+                        </span>
+                      </>
+                    )}
+                    {preview.publishedAt && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                        <CheckCircle className="h-10 w-10 text-white drop-shadow-lg" />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Info + actions */}
+                  <div className="p-4 space-y-2">
+                    <p className="font-semibold text-sm leading-snug">{preview.name}</p>
+                    <div className="flex flex-wrap gap-1.5 text-xs text-muted-foreground">
+                      {preview.sentToAccountName && <span>@{preview.sentToAccountName}</span>}
+                      {preview.scheduledDate && (
+                        <span>{preview.scheduledDate}{preview.scheduledTime ? ` · ${preview.scheduledTime}` : ""}</span>
+                      )}
+                      {preview.publishedAt && <span className="text-purple-500 font-medium">Publicado</span>}
+                      {!!preview.sentAt && !preview.publishedAt && <span className="text-amber-500 font-medium">Draft</span>}
+                    </div>
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        onClick={() => { setPreview(null); router.push(`/carousels/${preview.id}`); }}
+                        className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border rounded-lg px-3 py-1.5 hover:bg-muted/50 transition-colors"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        Abrir completo
+                      </button>
+                      <button
+                        onClick={() => setPreview(null)}
+                        className="ml-auto text-xs text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-lg hover:bg-muted/50 transition-colors"
+                      >
+                        Cerrar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
