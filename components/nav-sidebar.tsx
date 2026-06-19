@@ -14,6 +14,7 @@ import {
   LogOut,
   BarChart2,
   CalendarDays,
+  Music2,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Sun, Moon } from "lucide-react";
@@ -24,6 +25,7 @@ const links = [
   { href: "/hoy", label: "Hoy", icon: CalendarDays },
   { href: "/carousels", label: "Carousels", icon: Film },
   { href: "/users", label: "Usuarios", icon: UserCircle },
+  { href: "/tiktok", label: "TikTok", icon: Music2 },
   { href: "/stats", label: "Stats", icon: BarChart2 },
   { href: "/images", label: "Imágenes", icon: ImageIcon },
   { href: "/apps", label: "Apps", icon: Smartphone },
