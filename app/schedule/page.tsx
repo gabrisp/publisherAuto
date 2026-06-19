@@ -3,7 +3,7 @@
 import { useMemo, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
-import { Film, ChevronUp, ChevronDown } from "lucide-react";
+import { Film, ChevronUp, ChevronDown, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 
 type Slide = {
@@ -70,7 +70,14 @@ function CoverCard({
           <Film className="h-5 w-5 text-muted-foreground/30" />
         </div>
       )}
-      {c.publishedAt && <div className="absolute inset-0 bg-black/25" />}
+      {c.publishedAt && (
+        <>
+          <div className="absolute inset-0 bg-black/40" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <CheckCircle className="h-8 w-8 text-white drop-shadow-lg" />
+          </div>
+        </>
+      )}
       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-1.5">
         {c.scheduledTime && (
           <p className="text-[9px] text-white/80 font-medium leading-tight">{c.scheduledTime}</p>
@@ -95,14 +102,25 @@ export default function SchedulePage() {
   const [trayOpen, setTrayOpen] = useState(true);
   const dragCounter = useRef<Record<string, number>>({});
 
-  // Days that have at least one carousel
+  // Always show today + 7 days, plus any other dates that have carousels
   const days = useMemo(() => {
     const map = new Map<string, Carousel[]>();
+
+    // Seed the 7-day window (today + 6 more)
+    for (let i = 0; i < 7; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() + i);
+      const key = d.toISOString().slice(0, 10);
+      if (!map.has(key)) map.set(key, []);
+    }
+
+    // Add all carousels with a scheduled date
     for (const c of all) {
       if (!c.scheduledDate) continue;
       if (!map.has(c.scheduledDate)) map.set(c.scheduledDate, []);
       map.get(c.scheduledDate)!.push(c);
     }
+
     return [...map.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, carousels]) => ({
@@ -111,7 +129,7 @@ export default function SchedulePage() {
           (a.scheduledTime ?? "").localeCompare(b.scheduledTime ?? "")
         ),
       }));
-  }, [all]);
+  }, [all, today]);
 
   // Bottom tray: has account but no date
   const tray = useMemo(
@@ -175,12 +193,7 @@ export default function SchedulePage() {
     <div className={`relative ${trayOpen ? "pb-52" : "pb-14"}`}>
       {/* Timeline */}
       <div>
-        {days.length === 0 ? (
-          <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">
-            No hay carousels programados
-          </div>
-        ) : (
-          <div className="flex flex-col">
+        <div className="flex flex-col">
             {days.map(({ date, carousels }, idx) => {
               const fmt = fmtDayHeader(date);
               const isToday = date === today;
@@ -243,7 +256,6 @@ export default function SchedulePage() {
               );
             })}
           </div>
-        )}
       </div>
 
       {/* Fixed bottom tray: carousels with account but no date */}
