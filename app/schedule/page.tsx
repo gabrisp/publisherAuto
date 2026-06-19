@@ -196,7 +196,7 @@ export default function SchedulePage() {
   }
 
   return (
-    <div className={`relative pt-8 ${trayOpen ? "pb-52" : "pb-14"}`}>
+    <div className={`relative pt-16 ${trayOpen ? "pb-52" : "pb-14"}`}>
       {/* Timeline */}
       <div>
         <div className="flex flex-col">
