@@ -98,6 +98,11 @@ export default function CarouselsPage() {
   const [draggingCarouselId, setDraggingCarouselId] = useState<string | null>(null);
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
 
+  /* rubber-band selection */
+  const [rubberBand, setRubberBand] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
+  const rubberBandOrigin = useRef<{ x: number; y: number } | null>(null);
+  const rubberBandPendingId = useRef<string | null>(null);
+
   /* context menus */
   const [contextMenu, setContextMenu] = useState<ContextMenu>(null);
   const [folderMenu, setFolderMenu] = useState<FolderMenu>(null);
@@ -141,6 +146,68 @@ export default function CarouselsPage() {
     setActiveFolder(null);
     setSearch("");
   }, [showArchived]);
+
+  /* rubber-band: track mouse while dragging */
+  useEffect(() => {
+    if (!selectMode) { setRubberBand(null); return; }
+
+    const onMouseMove = (e: MouseEvent) => {
+      if (!rubberBandOrigin.current) return;
+      const { x, y } = rubberBandOrigin.current;
+      setRubberBand({ x1: x, y1: y, x2: e.clientX, y2: e.clientY });
+    };
+
+    const onMouseUp = (e: MouseEvent) => {
+      if (!rubberBandOrigin.current) return;
+      const { x, y } = rubberBandOrigin.current;
+      rubberBandOrigin.current = null;
+
+      const dx = Math.abs(e.clientX - x);
+      const dy = Math.abs(e.clientY - y);
+      const isDrag = dx > 6 || dy > 6;
+
+      if (isDrag) {
+        // Rubber-band: select all cards that intersect the rectangle
+        const minX = Math.min(x, e.clientX);
+        const maxX = Math.max(x, e.clientX);
+        const minY = Math.min(y, e.clientY);
+        const maxY = Math.max(y, e.clientY);
+        const cards = document.querySelectorAll<HTMLElement>("[data-carousel-id]");
+        const hit: string[] = [];
+        cards.forEach((el) => {
+          const r = el.getBoundingClientRect();
+          if (r.left < maxX && r.right > minX && r.top < maxY && r.bottom > minY) {
+            hit.push(el.dataset.carouselId!);
+          }
+        });
+        if (hit.length > 0) {
+          setSelected((prev) => {
+            const next = new Set(prev);
+            hit.forEach((id) => next.add(id));
+            return next;
+          });
+        }
+      } else if (rubberBandPendingId.current) {
+        // Simple click on a card: toggle it
+        const id = rubberBandPendingId.current;
+        setSelected((prev) => {
+          const next = new Set(prev);
+          if (next.has(id)) next.delete(id); else next.add(id);
+          return next;
+        });
+      }
+
+      rubberBandPendingId.current = null;
+      setRubberBand(null);
+    };
+
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+    return () => {
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+    };
+  }, [selectMode]);
 
   /* ── Import ── */
   async function importJson(text: string) {
@@ -640,6 +707,20 @@ export default function CarouselsPage() {
         )}
       </div>
 
+      {/* Rubber-band visual */}
+      {rubberBand && (() => {
+        const minX = Math.min(rubberBand.x1, rubberBand.x2);
+        const minY = Math.min(rubberBand.y1, rubberBand.y2);
+        const w = Math.abs(rubberBand.x2 - rubberBand.x1);
+        const h = Math.abs(rubberBand.y2 - rubberBand.y1);
+        return (
+          <div
+            className="fixed z-[300] pointer-events-none border border-primary bg-primary/10 rounded"
+            style={{ left: minX, top: minY, width: w, height: h }}
+          />
+        );
+      })()}
+
       {/* Grid / List */}
       {sorted.length === 0 ? (
         <p className="text-sm text-muted-foreground py-16 text-center">
@@ -652,7 +733,16 @@ export default function CarouselsPage() {
             : "Sin carousels en esta categoría."}
         </p>
       ) : (
-        <div className="flex flex-col gap-6">
+        <div
+          className="flex flex-col gap-6"
+          onMouseDown={(e) => {
+            if (!selectMode) return;
+            if ((e.target as Element).closest("[data-carousel-id]")) return;
+            e.preventDefault();
+            rubberBandPendingId.current = null;
+            rubberBandOrigin.current = { x: e.clientX, y: e.clientY };
+          }}
+        >
           {(() => {
             const shouldGroup = !!activeFolder || sortBy === "scheduled";
             const groups = shouldGroup ? groupByDate(sorted) : [{ date: null as string | null, items: sorted }];
@@ -680,6 +770,7 @@ export default function CarouselsPage() {
                       onDragStart={() => handleDragStart(c.id)}
                       onDragEnd={handleDragEnd}
                       onDateChange={handleDateChange}
+                                      onRubberBandStart={selectMode ? (id, x, y) => { rubberBandPendingId.current = id; rubberBandOrigin.current = { x, y }; } : undefined}
                     />
                   ))}
                 </div>
@@ -697,6 +788,7 @@ export default function CarouselsPage() {
                       onDragStart={() => handleDragStart(c.id)}
                       onDragEnd={handleDragEnd}
                       onDateChange={handleDateChange}
+                      onRubberBandStart={selectMode ? (id, x, y) => { rubberBandPendingId.current = id; rubberBandOrigin.current = { x, y }; } : undefined}
                     />
                   ))}
                 </div>
@@ -1137,7 +1229,7 @@ function Checkbox({ checked, onClick }: { checked: boolean; onClick: (e: React.M
 
 /* ── Grid card ───────────────────────────────────────────────────────── */
 function CarouselGridCard({
-  c, selected, selectMode, onToggleSelect, onOpen, onContextMenu, onDragStart, onDragEnd, onDateChange,
+  c, selected, selectMode, onToggleSelect, onOpen, onContextMenu, onDragStart, onDragEnd, onDateChange, onRubberBandStart,
 }: {
   c: Carousel;
   selected: boolean;
@@ -1148,23 +1240,23 @@ function CarouselGridCard({
   onDragStart: () => void;
   onDragEnd: () => void;
   onDateChange: (id: string, date: string | null) => void;
+  onRubberBandStart?: (id: string, x: number, y: number) => void;
 }) {
   return (
     <div
+      data-carousel-id={c.id}
       role="button"
       tabIndex={0}
       draggable={!selectMode}
       onDragStart={(e) => { if (selectMode) { e.preventDefault(); return; } e.dataTransfer.effectAllowed = "move"; onDragStart(); }}
       onDragEnd={onDragEnd}
-      className={`group relative flex flex-col rounded-2xl border bg-card overflow-hidden transition-all cursor-pointer hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
+      className={`group relative flex flex-col rounded-2xl border bg-card overflow-hidden transition-all hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
         ${selected ? "border-primary ring-2 ring-primary" : "hover:border-foreground/20"}
-        ${selectMode ? "select-none" : ""}`}
+        ${selectMode ? "select-none cursor-crosshair" : "cursor-pointer active:scale-[0.99]"}`}
       onClick={selectMode ? undefined : onOpen}
+      onMouseDown={selectMode ? (e) => { e.preventDefault(); onRubberBandStart?.(c.id, e.clientX, e.clientY); } : undefined}
     >
-      {/* Select mode overlay — sits above all children, captures any click */}
-      {selectMode && (
-        <div className="absolute inset-0 z-20 cursor-pointer" onClick={onToggleSelect} />
-      )}
+      {selectMode && <div className="absolute inset-0 z-20" />}
 
       <div
         className={`absolute top-2 left-2 z-30 transition-opacity ${selected || selectMode ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
@@ -1206,7 +1298,7 @@ function CarouselGridCard({
 
 /* ── Row item ────────────────────────────────────────────────────────── */
 function CarouselRowItem({
-  c, selected, selectMode, onToggleSelect, onOpen, onContextMenu, onDragStart, onDragEnd, onDateChange,
+  c, selected, selectMode, onToggleSelect, onOpen, onContextMenu, onDragStart, onDragEnd, onDateChange, onRubberBandStart,
 }: {
   c: Carousel;
   selected: boolean;
@@ -1217,22 +1309,23 @@ function CarouselRowItem({
   onDragStart: () => void;
   onDragEnd: () => void;
   onDateChange: (id: string, date: string | null) => void;
+  onRubberBandStart?: (id: string, x: number, y: number) => void;
 }) {
   return (
     <div
+      data-carousel-id={c.id}
       role="button"
       tabIndex={0}
       draggable={!selectMode}
       onDragStart={(e) => { if (selectMode) { e.preventDefault(); return; } e.dataTransfer.effectAllowed = "move"; onDragStart(); }}
       onDragEnd={onDragEnd}
-      className={`group relative flex items-center gap-3 rounded-xl border bg-card px-4 py-3 cursor-pointer transition-all hover:shadow-sm active:scale-[0.995] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
+      className={`group relative flex items-center gap-3 rounded-xl border bg-card px-4 py-3 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
         ${selected ? "border-primary ring-2 ring-primary" : "hover:border-foreground/20"}
-        ${selectMode ? "select-none" : ""}`}
+        ${selectMode ? "select-none cursor-crosshair" : "cursor-pointer hover:shadow-sm active:scale-[0.995]"}`}
       onClick={selectMode ? undefined : onOpen}
+      onMouseDown={selectMode ? (e) => { e.preventDefault(); onRubberBandStart?.(c.id, e.clientX, e.clientY); } : undefined}
     >
-      {selectMode && (
-        <div className="absolute inset-0 z-20 cursor-pointer rounded-xl" onClick={onToggleSelect} />
-      )}
+      {selectMode && <div className="absolute inset-0 z-20 rounded-xl" />}
       <div className="relative z-30">
         <Checkbox checked={selected} onClick={onToggleSelect} />
       </div>
