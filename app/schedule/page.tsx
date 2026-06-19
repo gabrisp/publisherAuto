@@ -155,17 +155,23 @@ export default function SchedulePage() {
 
   function handleDropOnDay(date: string) {
     if (!draggingId) return;
-    const c = all.find((x) => x.id === draggingId);
+    const id = draggingId;
+    setDraggingId(null);
+    setDropTarget(null);
+    const c = all.find((x) => x.id === id);
     if (!c || c.scheduledDate === date) return;
-    assignDate(draggingId, date);
+    assignDate(id, date);
     toast.success(`Movido a ${date}`);
   }
 
   function handleDropOnTray() {
     if (!draggingId) return;
-    const c = all.find((x) => x.id === draggingId);
+    const id = draggingId;
+    setDraggingId(null);
+    setDropTarget(null);
+    const c = all.find((x) => x.id === id);
     if (!c || !c.scheduledDate) return;
-    assignDate(draggingId, null);
+    assignDate(id, null);
     toast.success("Fecha eliminada");
   }
 
@@ -190,7 +196,7 @@ export default function SchedulePage() {
   }
 
   return (
-    <div className={`relative ${trayOpen ? "pb-52" : "pb-14"}`}>
+    <div className={`relative pt-4 ${trayOpen ? "pb-52" : "pb-14"}`}>
       {/* Timeline */}
       <div>
         <div className="flex flex-col">
