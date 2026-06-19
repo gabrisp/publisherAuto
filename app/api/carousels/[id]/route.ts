@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { carousels, carouselSlides, apps, influencers, images, tiktokAccounts } from "@/db/schema";
+import { carousels, carouselSlides, apps, influencers, images, tiktokAccounts, publisherUsers } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { deleteFile, urlToStoragePath } from "@/lib/supabase";
 import { now } from "@/lib/ids";
@@ -26,15 +26,19 @@ export async function GET(
       videoHashtags: carousels.videoHashtags,
       zipPath: carousels.zipPath,
       sentAt: carousels.sentAt,
+      publisherUserId: carousels.publisherUserId,
+      scheduledTime: carousels.scheduledTime,
       createdAt: carousels.createdAt,
       appName: apps.name,
       influencerName: influencers.name,
       sentToAccountName: tiktokAccounts.name,
+      publisherUsername: publisherUsers.username,
     })
     .from(carousels)
     .leftJoin(apps, eq(carousels.appId, apps.id))
     .leftJoin(influencers, eq(carousels.influencerId, influencers.id))
     .leftJoin(tiktokAccounts, eq(carousels.sentToAccountId, tiktokAccounts.id))
+    .leftJoin(publisherUsers, eq(carousels.publisherUserId, publisherUsers.id))
     .where(eq(carousels.id, id));
 
   if (!carousel) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -69,8 +73,10 @@ export async function PATCH(
   if ("archivedAt" in body) patch.archivedAt = body.archivedAt ?? null;
   if ("sentAt" in body) patch.sentAt = body.sentAt ?? null;
   if ("scheduledDate" in body) patch.scheduledDate = body.scheduledDate ?? null;
+  if ("scheduledTime" in body) patch.scheduledTime = body.scheduledTime ?? null;
   if ("publishedAt" in body) patch.publishedAt = body.publishedAt ?? null;
   if ("stats" in body) patch.stats = body.stats ? JSON.stringify(body.stats) : null;
+  if ("publisherUserId" in body) patch.publisherUserId = body.publisherUserId ?? null;
 
   const [updated] = await db
     .update(carousels)

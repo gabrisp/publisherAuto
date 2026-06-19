@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Film, ImageIcon, Music2, LayoutDashboard, LogOut } from "lucide-react";
+import { Film, ImageIcon, Music2, LayoutDashboard, LogOut, UserCircle } from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 
 const links = [
   { href: "/", label: "Inicio", icon: LayoutDashboard, exact: true },
   { href: "/carousels", label: "Carousels", icon: Film },
+  { href: "/users", label: "Usuarios", icon: UserCircle },
   { href: "/images", label: "Imágenes", icon: ImageIcon },
   { href: "/tiktok", label: "TikTok", icon: Music2 },
 ];

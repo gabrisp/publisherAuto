@@ -24,6 +24,8 @@ import {
   BarChart2,
   CheckCircle2,
   Loader2,
+  UserCircle,
+  Clock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useParams, useRouter } from "next/navigation";
@@ -58,6 +60,7 @@ type CarouselDetail = {
   folderId: string | null;
   archivedAt: number | null;
   scheduledDate: string | null;
+  scheduledTime: string | null;
   publishedAt: number | null;
   stats: string | null;
   videoTitle: string | null;
@@ -69,10 +72,13 @@ type CarouselDetail = {
   appName: string | null;
   influencerName: string | null;
   sentToAccountName: string | null;
+  publisherUserId: string | null;
+  publisherUsername: string | null;
   slides: Slide[];
 };
 
 type FolderRecord = { id: string; name: string };
+type PublisherUserRecord = { id: string; username: string };
 
 type PickerImage = { id: string; path: string; tag: string; originalName: string; scope: string };
 
@@ -97,6 +103,7 @@ export default function CarouselDetailPage() {
 
   const { data: carousel, mutate } = useSWR<CarouselDetail>(`/api/carousels/${id}`, fetcher);
   const { data: folders = [] } = useSWR<FolderRecord[]>("/api/folders", fetcher);
+  const { data: publisherUsersList = [] } = useSWR<PublisherUserRecord[]>("/api/users", fetcher);
   // Lista completa para prev/next — usa el mismo caché que /carousels
   const { data: allCarousels = [] } = useSWR<{ id: string }[]>("/api/carousels", fetcher);
   const currentIndex = allCarousels.findIndex((c) => c.id === id);
@@ -116,6 +123,7 @@ export default function CarouselDetailPage() {
 
   // Folder picker dropdown
   const [folderOpen, setFolderOpen] = useState(false);
+  const [userPickerOpen, setUserPickerOpen] = useState(false);
   useEffect(() => {
     if (!folderOpen) return;
     const close = () => setFolderOpen(false);
@@ -544,6 +552,54 @@ export default function CarouselDetailPage() {
               />
             </label>
           </div>
+
+          {/* Scheduled time */}
+          <label className="flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors hover:bg-muted/60 bg-muted/30 text-muted-foreground hover:text-foreground cursor-pointer">
+            <Clock className="h-3 w-3 shrink-0" />
+            {carousel.scheduledTime ?? "Hora"}
+            <input
+              type="time"
+              value={carousel.scheduledTime ?? ""}
+              onChange={(e) => patchCarousel({ scheduledTime: e.target.value || null })}
+              className="absolute opacity-0 w-0 h-0"
+            />
+          </label>
+
+          {/* Publisher user picker */}
+          {publisherUsersList.length > 0 && (
+            <div className="relative">
+              <button
+                onClick={() => setUserPickerOpen((o) => !o)}
+                className="flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors hover:bg-muted/60 bg-muted/30 text-muted-foreground hover:text-foreground"
+              >
+                <UserCircle className="h-3 w-3 shrink-0" />
+                {carousel.publisherUsername ? `@${carousel.publisherUsername}` : "Asignar"}
+                <ChevronDown className="h-2.5 w-2.5 opacity-50" />
+              </button>
+              {userPickerOpen && (
+                <div className="absolute top-full mt-1.5 left-0 z-50 bg-background border shadow-xl rounded-xl overflow-hidden min-w-40 py-1">
+                  <button
+                    className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-muted/60"
+                    onClick={() => { patchCarousel({ publisherUserId: null }); setUserPickerOpen(false); }}
+                  >
+                    <X className="h-3 w-3" />
+                    Sin asignar
+                  </button>
+                  <div className="border-t my-1" />
+                  {publisherUsersList.map((u) => (
+                    <button
+                      key={u.id}
+                      className={`flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-muted/60 ${carousel.publisherUserId === u.id ? "font-semibold text-primary" : ""}`}
+                      onClick={() => { patchCarousel({ publisherUserId: u.id }); setUserPickerOpen(false); toast.success(`Asignado a @${u.username}`, { duration: 1500 }); }}
+                    >
+                      <UserCircle className="h-3 w-3" />
+                      @{u.username}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Archive toggle */}
           <button

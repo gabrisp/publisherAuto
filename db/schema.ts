@@ -1,4 +1,4 @@
-import { pgTable, text, integer, bigint } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, bigint, primaryKey } from "drizzle-orm/pg-core";
 
 export const apps = pgTable("apps", {
   id: text("id").primaryKey(),
@@ -61,6 +61,9 @@ export const carousels = pgTable("carousels", {
   // TikTok draft info
   sentToAccountId: text("sent_to_account_id"),
   sentAt: bigint("sent_at", { mode: "number" }),
+  // Publisher user assignment
+  publisherUserId: text("publisher_user_id").references(() => publisherUsers.id, { onDelete: "set null" }),
+  scheduledTime: text("scheduled_time"), // "HH:MM", e.g. "10:30"
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
   updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
 });
@@ -86,9 +89,29 @@ export const hashtags = pgTable("hashtags", {
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
 });
 
+export const userTiktokAccounts = pgTable(
+  "user_tiktok_accounts",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => publisherUsers.id, { onDelete: "cascade" }),
+    accountId: text("account_id")
+      .notNull()
+      .references(() => tiktokAccounts.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.accountId] })]
+);
+
 export const settings = pgTable("settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
+});
+
+export const publisherUsers = pgTable("publisher_users", {
+  id: text("id").primaryKey(), // matches Supabase auth.users.id
+  username: text("username").notNull().unique(),
+  displayName: text("display_name"),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
 });
 
 export const tiktokAccounts = pgTable("tiktok_accounts", {
@@ -118,6 +141,8 @@ export type NewTiktokAccount = typeof tiktokAccounts.$inferInsert;
 export type Setting = typeof settings.$inferSelect;
 export type Hashtag = typeof hashtags.$inferSelect;
 export type NewHashtag = typeof hashtags.$inferInsert;
+export type PublisherUser = typeof publisherUsers.$inferSelect;
+export type NewPublisherUser = typeof publisherUsers.$inferInsert;
 
 export type TextElement = {
   id: string;

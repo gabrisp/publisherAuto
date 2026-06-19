@@ -8,6 +8,7 @@ import {
   FileJson, ClipboardPaste, Folder, FolderOpen, MoreHorizontal,
   ChevronRight, Copy, MoveRight, Pencil, FolderInput, Archive,
   ArchiveRestore, Calendar, ArrowUpDown, Loader2, MousePointer2,
+  UserCircle,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -35,7 +36,10 @@ type Carousel = {
   folderId: string | null;
   archivedAt: number | null;
   scheduledDate: string | null;
+  scheduledTime: string | null;
   publishedAt: number | null;
+  publisherUserId: string | null;
+  publisherUsername: string | null;
 };
 
 type FolderRecord = {
@@ -53,7 +57,7 @@ type ContextMenu = {
   carouselId: string;
   top: number;
   right: number;
-  submenu: "move" | null;
+  submenu: "move" | "assign" | null;
 } | null;
 
 type FolderMenu = { id: string; top: number; right: number } | null;
@@ -70,10 +74,12 @@ export default function CarouselsPage() {
   const apiUrl = showArchived ? "/api/carousels?archived=1" : "/api/carousels";
   const { data: all = [], mutate } = useSWR<Carousel[]>(apiUrl, fetcher, SWR_OPTS);
   const { data: folders = [], mutate: mutateFolders } = useSWR<FolderRecord[]>("/api/folders", fetcher, SWR_OPTS);
+  const { data: users = [] } = useSWR<{ id: string; username: string }[]>("/api/users", fetcher, SWR_OPTS);
 
   /* filter / view */
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<FilterVal>("all");
+  const [filterAssigned, setFilterAssigned] = useState<"all" | "assigned" | "unassigned">("all");
   const [sortBy, setSortBy] = useState<SortBy>("created");
   const [filterApp, setFilterApp] = useState("");
   const [filterInfluencer, setFilterInfluencer] = useState("");
@@ -426,6 +432,8 @@ export default function CarouselsPage() {
     if (filter === "published") rows = rows.filter((c) => !!c.publishedAt);
     if (filterApp) rows = rows.filter((c) => c.appName === filterApp);
     if (filterInfluencer) rows = rows.filter((c) => c.influencerName === filterInfluencer);
+    if (filterAssigned === "assigned") rows = rows.filter((c) => !!c.publisherUserId);
+    if (filterAssigned === "unassigned") rows = rows.filter((c) => !c.publisherUserId);
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       rows = rows.filter((c) =>
@@ -437,7 +445,7 @@ export default function CarouselsPage() {
       );
     }
     return rows;
-  }, [all, activeFolder, filter, filterApp, filterInfluencer, search]);
+  }, [all, activeFolder, filter, filterApp, filterInfluencer, filterAssigned, search]);
 
   const sorted = useMemo(() => {
     if (sortBy === "scheduled") {
@@ -576,7 +584,7 @@ export default function CarouselsPage() {
         </div>
 
         {/* Secondary filters */}
-        {(appOptions.length > 1 || influencerOptions.length > 1) && (
+        {(appOptions.length > 1 || influencerOptions.length > 1 || users.length > 0) && (
           <div className="flex items-center gap-2 flex-wrap">
             {appOptions.length > 1 && (
               <select value={filterApp} onChange={(e) => setFilterApp(e.target.value)}
@@ -592,8 +600,16 @@ export default function CarouselsPage() {
                 {influencerOptions.map((i) => <option key={i} value={i}>{i}</option>)}
               </select>
             )}
-            {(filterApp || filterInfluencer) && (
-              <button onClick={() => { setFilterApp(""); setFilterInfluencer(""); }}
+            {users.length > 0 && (
+              <select value={filterAssigned} onChange={(e) => setFilterAssigned(e.target.value as "all" | "assigned" | "unassigned")}
+                className="rounded-lg border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+                <option value="all">Todos (asignados)</option>
+                <option value="assigned">Asignados</option>
+                <option value="unassigned">Sin asignar</option>
+              </select>
+            )}
+            {(filterApp || filterInfluencer || filterAssigned !== "all") && (
+              <button onClick={() => { setFilterApp(""); setFilterInfluencer(""); setFilterAssigned("all"); }}
                 className="text-xs text-muted-foreground hover:text-foreground px-2 py-1.5 rounded-lg hover:bg-muted/50">
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -806,7 +822,35 @@ export default function CarouselsPage() {
           style={{ top: contextMenu.top, right: contextMenu.right }}
           onClick={(e) => e.stopPropagation()}
         >
-          {contextMenu.submenu === "move" ? (
+          {contextMenu.submenu === "assign" ? (
+            <>
+              <button
+                className="flex items-center gap-2 w-full px-4 py-2 text-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                onClick={(e) => { e.stopPropagation(); setContextMenu((m) => m ? { ...m, submenu: null } : null); }}
+              >
+                <ChevronRight className="h-3.5 w-3.5 rotate-180" />
+                Atrás
+              </button>
+              <div className="border-t my-1" />
+              <button
+                className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-muted/60"
+                onClick={async (e) => { e.stopPropagation(); const cid = contextMenu.carouselId; setContextMenu(null); await fetch(`/api/carousels/${cid}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ publisherUserId: null }) }); mutate(); }}
+              >
+                <X className="h-3.5 w-3.5" />
+                Sin asignar
+              </button>
+              {users.map((u) => (
+                <button
+                  key={u.id}
+                  className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-muted/60"
+                  onClick={async (e) => { e.stopPropagation(); const cid = contextMenu.carouselId; setContextMenu(null); await fetch(`/api/carousels/${cid}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ publisherUserId: u.id }) }); mutate(); toast.success(`Asignado a @${u.username}`); }}
+                >
+                  <UserCircle className="h-3.5 w-3.5" />
+                  @{u.username}
+                </button>
+              ))}
+            </>
+          ) : contextMenu.submenu === "move" ? (
             <>
               <button
                 className="flex items-center gap-2 w-full px-4 py-2 text-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground"
@@ -857,6 +901,19 @@ export default function CarouselsPage() {
                 >
                   <MoveRight className="h-3.5 w-3.5" />
                   Mover a…
+                  <ChevronRight className="h-3 w-3 ml-auto" />
+                </button>
+              )}
+              {users.length > 0 && (
+                <button
+                  className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-muted/60"
+                  onClick={(e) => { e.stopPropagation(); setContextMenu((m) => m ? { ...m, submenu: "assign" } : null); }}
+                >
+                  <UserCircle className="h-3.5 w-3.5" />
+                  {(() => {
+                    const c = all.find((c) => c.id === contextMenu?.carouselId);
+                    return c?.publisherUsername ? `@${c.publisherUsername}` : "Asignar usuario";
+                  })()}
                   <ChevronRight className="h-3 w-3 ml-auto" />
                 </button>
               )}

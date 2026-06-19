@@ -9,6 +9,11 @@ function getClient() {
   );
 }
 
+/** Supabase admin client with service key — bypasses RLS, has auth.admin API */
+export function getAdminClient() {
+  return getClient();
+}
+
 /** Sube un buffer a Supabase Storage y devuelve la URL pública */
 export async function uploadFile(
   storagePath: string,
