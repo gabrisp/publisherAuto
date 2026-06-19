@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
-import { Film } from "lucide-react";
+import { Film, ChevronUp, ChevronDown } from "lucide-react";
+import { toast } from "sonner";
 
 type Slide = {
   id: string;
@@ -19,32 +20,82 @@ type Carousel = {
   scheduledTime: string | null;
   publishedAt: number | null;
   sentAt: number | null;
+  sentToAccountId: string | null;
   sentToAccountName: string | null;
   slides: Slide[];
 };
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-function fmtDay(dateStr: string) {
+function fmtDayHeader(dateStr: string) {
   const [y, m, d] = dateStr.split("-").map(Number);
   const date = new Date(y, m - 1, d);
   return {
-    weekday: date.toLocaleDateString("es-ES", { weekday: "long" }),
+    weekday: date.toLocaleDateString("es-ES", { weekday: "short" }).replace(".", "").toUpperCase(),
     day: d,
     month: date.toLocaleDateString("es-ES", { month: "short" }).replace(".", ""),
-    full: date.toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short" }),
   };
+}
+
+function CoverCard({
+  c,
+  onDragStart,
+  onDragEnd,
+  onClick,
+  dragging,
+}: {
+  c: Carousel;
+  onDragStart: () => void;
+  onDragEnd: () => void;
+  onClick: () => void;
+  dragging: boolean;
+}) {
+  const slides = [...(c.slides ?? [])].sort((a, b) => a.order - b.order);
+  const cover = slides[0];
+  const src = cover?.generatedImagePath ?? cover?.imagePath;
+
+  return (
+    <div
+      draggable
+      onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; onDragStart(); }}
+      onDragEnd={onDragEnd}
+      onClick={onClick}
+      className={`group relative shrink-0 w-[88px] rounded-xl overflow-hidden bg-muted border cursor-grab active:cursor-grabbing transition-opacity select-none ${dragging ? "opacity-30" : "hover:ring-2 hover:ring-primary/50"}`}
+      style={{ aspectRatio: "9/16" }}
+    >
+      {src ? (
+        <img src={src} alt={c.name} className="w-full h-full object-cover" />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center">
+          <Film className="h-5 w-5 text-muted-foreground/30" />
+        </div>
+      )}
+      {c.publishedAt && <div className="absolute inset-0 bg-black/25" />}
+      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-1.5">
+        {c.scheduledTime && (
+          <p className="text-[9px] text-white/80 font-medium leading-tight">{c.scheduledTime}</p>
+        )}
+        {c.sentToAccountName && (
+          <p className="text-[9px] text-white font-semibold leading-tight truncate">@{c.sentToAccountName}</p>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export default function SchedulePage() {
   const router = useRouter();
-  const { data: all = [] } = useSWR<Carousel[]>("/api/carousels", fetcher, {
+  const { data: all = [], mutate } = useSWR<Carousel[]>("/api/carousels", fetcher, {
     revalidateOnFocus: false,
   });
 
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<string | null>(null); // date string or "__tray"
+  const [trayOpen, setTrayOpen] = useState(true);
+  const dragCounter = useRef<Record<string, number>>({});
 
-  // Group by date, only dates that have carousels, sorted ascending
+  // Days that have at least one carousel
   const days = useMemo(() => {
     const map = new Map<string, Carousel[]>();
     for (const c of all) {
@@ -54,107 +105,187 @@ export default function SchedulePage() {
     }
     return [...map.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, carousels]) => ({ date, carousels }));
+      .map(([date, carousels]) => ({
+        date,
+        carousels: [...carousels].sort((a, b) =>
+          (a.scheduledTime ?? "").localeCompare(b.scheduledTime ?? "")
+        ),
+      }));
   }, [all]);
 
-  if (days.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">
-        No hay carousels programados
-      </div>
-    );
+  // Bottom tray: has account but no date
+  const tray = useMemo(
+    () => all.filter((c) => c.sentToAccountId && !c.scheduledDate),
+    [all]
+  );
+
+  const assignDate = useCallback(
+    async (carouselId: string, date: string | null) => {
+      mutate(
+        (prev) => prev?.map((c) => c.id === carouselId ? { ...c, scheduledDate: date } : c),
+        false
+      );
+      const res = await fetch(`/api/carousels/${carouselId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scheduledDate: date }),
+      });
+      if (!res.ok) { toast.error("Error al mover"); mutate(); }
+    },
+    [mutate]
+  );
+
+  function handleDropOnDay(date: string) {
+    if (!draggingId) return;
+    const c = all.find((x) => x.id === draggingId);
+    if (!c || c.scheduledDate === date) return;
+    assignDate(draggingId, date);
+    toast.success(`Movido a ${date}`);
+  }
+
+  function handleDropOnTray() {
+    if (!draggingId) return;
+    const c = all.find((x) => x.id === draggingId);
+    if (!c || !c.scheduledDate) return;
+    assignDate(draggingId, null);
+    toast.success("Fecha eliminada");
+  }
+
+  function onDayDragOver(e: React.DragEvent, date: string) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDropTarget(date);
+  }
+
+  function onDayDragEnter(e: React.DragEvent, date: string) {
+    e.preventDefault();
+    dragCounter.current[date] = (dragCounter.current[date] ?? 0) + 1;
+    setDropTarget(date);
+  }
+
+  function onDayDragLeave(e: React.DragEvent, date: string) {
+    dragCounter.current[date] = (dragCounter.current[date] ?? 1) - 1;
+    if (dragCounter.current[date] <= 0) {
+      dragCounter.current[date] = 0;
+      setDropTarget((t) => t === date ? null : t);
+    }
   }
 
   return (
-    <div className="overflow-x-auto no-scrollbar">
-      <div className="flex gap-0 min-w-max pb-6 pr-12">
-        {days.map(({ date, carousels }, dayIdx) => {
-          const fmt = fmtDay(date);
-          const isPast = date < today;
-          const isToday = date === today;
-          const sorted = [...carousels].sort((a, b) =>
-            (a.scheduledTime ?? "").localeCompare(b.scheduledTime ?? "")
-          );
+    <div className="relative h-full">
+      {/* Timeline */}
+      <div className={`overflow-y-auto ${trayOpen ? "pb-52" : "pb-14"}`}>
+        {days.length === 0 ? (
+          <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">
+            No hay carousels programados
+          </div>
+        ) : (
+          <div className="flex flex-col">
+            {days.map(({ date, carousels }, idx) => {
+              const fmt = fmtDayHeader(date);
+              const isToday = date === today;
+              const isPast = date < today;
+              const isDropTarget = dropTarget === date;
 
-          return (
-            <div key={date} className="flex flex-row">
-              {/* Day column */}
-              <div className="flex flex-col items-center w-[140px] shrink-0">
-                {/* Date header */}
-                <div className={`mb-4 text-center ${isPast && !isToday ? "opacity-50" : ""}`}>
-                  <p className={`text-xs font-semibold uppercase tracking-wider capitalize ${isToday ? "text-primary" : "text-muted-foreground"}`}>
-                    {fmt.weekday}
-                  </p>
-                  <p className={`text-2xl font-black leading-none ${isToday ? "text-primary" : ""}`}>
-                    {fmt.day}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground capitalize">{fmt.month}</p>
+              return (
+                <div key={date} className="flex flex-row">
+                  {/* Left: vertical line + dot */}
+                  <div className="flex flex-col items-center w-14 shrink-0 pt-1">
+                    {/* Top connector (all except first) */}
+                    {idx > 0 && <div className={`w-px flex-none h-4 ${isToday ? "bg-primary/60" : "bg-border"}`} />}
+                    {/* Dot */}
+                    <div className={`w-2.5 h-2.5 rounded-full shrink-0 border-2 ${isToday ? "bg-primary border-primary" : isPast ? "bg-muted-foreground/30 border-muted-foreground/30" : "bg-background border-border"}`} />
+                    {/* Bottom connector */}
+                    <div className={`w-px flex-1 min-h-4 ${isToday ? "bg-primary/60" : "bg-border"}`} />
+                  </div>
+
+                  {/* Right: day header + carousels */}
+                  <div className="flex-1 min-w-0 pb-8">
+                    {/* Day header */}
+                    <div className={`flex items-baseline gap-1.5 mb-3 mt-0.5 ${isPast && !isToday ? "opacity-50" : ""}`}>
+                      <span className={`text-[11px] font-bold uppercase tracking-wider ${isToday ? "text-primary" : "text-muted-foreground"}`}>
+                        {fmt.weekday}
+                      </span>
+                      <span className={`text-2xl font-black leading-none ${isToday ? "text-primary" : ""}`}>
+                        {fmt.day}
+                      </span>
+                      <span className={`text-xs capitalize ${isToday ? "text-primary/70" : "text-muted-foreground"}`}>
+                        {fmt.month}
+                      </span>
+                    </div>
+
+                    {/* Carousel row — drop zone */}
+                    <div
+                      onDragOver={(e) => onDayDragOver(e, date)}
+                      onDragEnter={(e) => onDayDragEnter(e, date)}
+                      onDragLeave={(e) => onDayDragLeave(e, date)}
+                      onDrop={(e) => { e.preventDefault(); setDropTarget(null); handleDropOnDay(date); }}
+                      className={`flex gap-2 overflow-x-auto pr-4 pb-1 min-h-[160px] rounded-xl transition-colors ${isDropTarget ? "bg-primary/10 ring-2 ring-primary/40 ring-dashed" : ""}`}
+                      style={{ scrollbarWidth: "none" }}
+                    >
+                      {carousels.map((c) => (
+                        <CoverCard
+                          key={c.id}
+                          c={c}
+                          dragging={draggingId === c.id}
+                          onDragStart={() => setDraggingId(c.id)}
+                          onDragEnd={() => { setDraggingId(null); setDropTarget(null); }}
+                          onClick={() => router.push(`/carousels/${c.id}`)}
+                        />
+                      ))}
+                      {/* Drop placeholder */}
+                      {isDropTarget && draggingId && !carousels.find((c) => c.id === draggingId) && (
+                        <div className="shrink-0 w-[88px] rounded-xl border-2 border-dashed border-primary/40 bg-primary/5" style={{ aspectRatio: "9/16" }} />
+                      )}
+                    </div>
+                  </div>
                 </div>
-
-                {/* Carousels stacked */}
-                <div className="flex flex-col gap-3 w-full px-3 relative">
-                  {/* Vertical line */}
-                  <div className={`absolute left-0 top-0 bottom-0 w-px ${isToday ? "bg-primary/40" : "bg-border"}`} />
-
-                  {sorted.map((c) => {
-                    const slides = [...(c.slides ?? [])].sort((a, b) => a.order - b.order);
-                    const cover = slides[0];
-                    const coverSrc = cover?.generatedImagePath ?? cover?.imagePath;
-                    const isPublished = !!c.publishedAt;
-
-                    return (
-                      <button
-                        key={c.id}
-                        onClick={() => router.push(`/carousels/${c.id}`)}
-                        className={`group relative w-full rounded-xl overflow-hidden bg-muted border hover:ring-2 hover:ring-primary/50 transition-all text-left ${isPast && !isToday ? "opacity-60" : ""}`}
-                        style={{ aspectRatio: "9/16" }}
-                      >
-                        {coverSrc ? (
-                          <img src={coverSrc} alt={c.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <Film className="h-6 w-6 text-muted-foreground/30" />
-                          </div>
-                        )}
-                        {isPublished && <div className="absolute inset-0 bg-black/25" />}
-
-                        {/* Status */}
-                        {isPublished && (
-                          <span className="absolute top-1.5 left-1.5 text-[9px] bg-purple-500 text-white rounded-full px-1.5 py-0.5 font-bold">✓</span>
-                        )}
-                        {!!c.sentAt && !isPublished && (
-                          <span className="absolute top-1.5 left-1.5 text-[9px] bg-amber-500 text-white rounded-full px-1.5 py-0.5 font-bold">D</span>
-                        )}
-
-                        {/* Bottom info */}
-                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
-                          {c.scheduledTime && (
-                            <p className="text-[10px] text-white/80 font-medium">{c.scheduledTime}</p>
-                          )}
-                          {c.sentToAccountName && (
-                            <p className="text-[10px] text-white font-semibold">@{c.sentToAccountName}</p>
-                          )}
-                          <p className="text-[9px] text-white/70 leading-tight line-clamp-1 mt-0.5">{c.name}</p>
-                        </div>
-
-                        {/* Hover overlay */}
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Horizontal connector line between days */}
-              {dayIdx < days.length - 1 && (
-                <div className="flex items-start pt-[72px] w-8 shrink-0">
-                  <div className="w-full h-px bg-border mt-1" />
-                </div>
-              )}
-            </div>
-          );
-        })}
+              );
+            })}
+          </div>
+        )}
       </div>
+
+      {/* Fixed bottom tray: carousels with account but no date */}
+      {tray.length > 0 && (
+        <div className={`fixed bottom-0 left-56 right-0 z-40 bg-background border-t shadow-xl transition-all duration-200 ${trayOpen ? "h-52" : "h-11"}`}>
+          {/* Tray header */}
+          <div className="flex items-center justify-between px-4 h-11 shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold">Sin fecha</span>
+              <span className="text-xs text-muted-foreground bg-muted rounded-full px-2 py-0.5">{tray.length}</span>
+            </div>
+            <button
+              onClick={() => setTrayOpen((o) => !o)}
+              className="p-1 rounded-md hover:bg-muted/60 text-muted-foreground transition-colors"
+            >
+              {trayOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+            </button>
+          </div>
+
+          {/* Tray carousels */}
+          {trayOpen && (
+            <div
+              onDragOver={(e) => { e.preventDefault(); setDropTarget("__tray"); }}
+              onDragLeave={() => setDropTarget((t) => t === "__tray" ? null : t)}
+              onDrop={(e) => { e.preventDefault(); setDropTarget(null); handleDropOnTray(); }}
+              className={`flex gap-2 overflow-x-auto px-4 pb-3 h-[calc(100%-44px)] items-start pt-1 transition-colors ${dropTarget === "__tray" ? "bg-primary/5" : ""}`}
+              style={{ scrollbarWidth: "none" }}
+            >
+              {tray.map((c) => (
+                <CoverCard
+                  key={c.id}
+                  c={c}
+                  dragging={draggingId === c.id}
+                  onDragStart={() => setDraggingId(c.id)}
+                  onDragEnd={() => { setDraggingId(null); setDropTarget(null); }}
+                  onClick={() => router.push(`/carousels/${c.id}`)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
