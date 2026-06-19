@@ -8,7 +8,7 @@ import {
   FileJson, ClipboardPaste, Folder, FolderOpen, MoreHorizontal,
   ChevronRight, Copy, MoveRight, Pencil, FolderInput, Archive,
   ArchiveRestore, Calendar, ArrowUpDown, Loader2, MousePointer2,
-  UserCircle, LayoutTemplate, Film,
+  UserCircle,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -51,7 +51,7 @@ type FolderRecord = {
 
 type FilterVal = "all" | "pending" | "draft" | "published";
 type SortBy = "created" | "scheduled";
-type ViewMode = "cover" | "grid" | "row";
+type ViewMode = "grid" | "row";
 
 type ContextMenu = {
   carouselId: string;
@@ -83,7 +83,7 @@ export default function CarouselsPage() {
   const [sortBy, setSortBy] = useState<SortBy>("created");
   const [filterApp, setFilterApp] = useState("");
   const [filterInfluencer, setFilterInfluencer] = useState("");
-  const [view, setView] = useState<ViewMode>("cover");
+  const [view, setView] = useState<ViewMode>("grid");
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -580,14 +580,10 @@ export default function CarouselsPage() {
           </div>
 
           <div className="flex gap-0.5 rounded-lg border p-1 bg-muted/30 shrink-0">
-            {([
-              { v: "cover", icon: <LayoutTemplate className="h-3.5 w-3.5" />, title: "Portadas" },
-              { v: "grid", icon: <LayoutGrid className="h-3.5 w-3.5" />, title: "Grid" },
-              { v: "row", icon: <List className="h-3.5 w-3.5" />, title: "Lista" },
-            ] as { v: ViewMode; icon: React.ReactNode; title: string }[]).map(({ v, icon, title }) => (
-              <button key={v} onClick={() => setView(v)} title={title}
+            {(["grid", "row"] as ViewMode[]).map((v) => (
+              <button key={v} onClick={() => setView(v)} title={v === "grid" ? "Grid" : "Lista"}
                 className={`p-1.5 rounded-md transition-colors ${view === v ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
-                {icon}
+                {v === "grid" ? <LayoutGrid className="h-3.5 w-3.5" /> : <List className="h-3.5 w-3.5" />}
               </button>
             ))}
             <button
@@ -799,21 +795,7 @@ export default function CarouselsPage() {
                   <div className="flex-1 border-t border-dashed" />
                 </div>
               )}
-              {view === "cover" ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-                  {items.map((c) => (
-                    <CarouselCoverCard
-                      key={c.id}
-                      c={c}
-                      selected={selected.has(c.id)}
-                      selectMode={selectMode}
-                      onToggleSelect={(e) => toggleSelect(c.id, e)}
-                      onOpen={() => router.push(`/carousels/${c.id}`)}
-                      onContextMenu={(e) => openContextMenu(c.id, e)}
-                    />
-                  ))}
-                </div>
-              ) : view === "grid" ? (
+              {view === "grid" ? (
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                   {items.map((c) => (
                     <CarouselGridCard
@@ -1359,81 +1341,6 @@ function Checkbox({ checked, onClick }: { checked: boolean; onClick: (e: React.M
           <polyline points="1,4 4,7 9,1" />
         </svg>
       )}
-    </div>
-  );
-}
-
-/* ── Cover card ──────────────────────────────────────────────────────── */
-function CarouselCoverCard({
-  c, selected, selectMode, onToggleSelect, onOpen, onContextMenu,
-}: {
-  c: Carousel;
-  selected: boolean;
-  selectMode: boolean;
-  onToggleSelect: (e: React.MouseEvent) => void;
-  onOpen: () => void;
-  onContextMenu: (e: React.MouseEvent) => void;
-}) {
-  const sortedSlides = [...(c.slides ?? [])].sort((a, b) => a.order - b.order);
-  const cover = sortedSlides[0];
-  const coverSrc = cover?.generatedImagePath ?? cover?.imagePath;
-  const isPublished = !!c.publishedAt;
-  const isDraft = !!c.sentAt && !isPublished;
-
-  return (
-    <div
-      role="button"
-      tabIndex={0}
-      className={`group relative flex flex-col rounded-xl border bg-card overflow-hidden transition-all hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
-        ${selected ? "border-primary ring-2 ring-primary" : "hover:border-foreground/20"}
-        ${selectMode ? "select-none cursor-crosshair" : "cursor-pointer active:scale-[0.99]"}`}
-      onClick={selectMode ? undefined : onOpen}
-    >
-      {selectMode && <div className="absolute inset-0 z-20" />}
-      <div className={`absolute top-2 left-2 z-30 transition-opacity ${selected || selectMode ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
-        <Checkbox checked={selected} onClick={onToggleSelect} />
-      </div>
-      <button
-        className={`absolute top-2 right-2 z-10 h-6 w-6 flex items-center justify-center rounded-lg bg-background/80 border backdrop-blur-sm hover:bg-background transition-opacity ${selectMode ? "opacity-0 pointer-events-none" : "opacity-0 group-hover:opacity-100"}`}
-        onClick={(e) => { e.stopPropagation(); onContextMenu(e); }}
-      >
-        <MoreHorizontal className="h-3.5 w-3.5" />
-      </button>
-
-      {/* 9:16 cover image */}
-      <div className="relative aspect-[9/16] bg-muted overflow-hidden">
-        {coverSrc ? (
-          <img src={coverSrc} alt={c.name} className="w-full h-full object-cover" />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <Film className="h-8 w-8 text-muted-foreground/30" />
-          </div>
-        )}
-        {isPublished && <div className="absolute inset-0 bg-black/20" />}
-        <div className="absolute top-2 left-8 flex flex-col gap-1">
-          {isPublished && (
-            <span className="text-[10px] bg-purple-500 text-white rounded-full px-2 py-0.5 font-semibold leading-tight">Pub</span>
-          )}
-          {isDraft && (
-            <span className="text-[10px] bg-amber-500/90 text-white rounded-full px-2 py-0.5 font-semibold leading-tight">Draft</span>
-          )}
-        </div>
-        {c.scheduledDate && (
-          <div className="absolute bottom-2 left-2 right-2">
-            <span className="text-[10px] bg-black/60 text-white rounded-full px-2 py-0.5 font-medium backdrop-blur-sm">
-              {fmtShortDate(c.scheduledDate)}{c.scheduledTime ? ` · ${c.scheduledTime}` : ""}
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* Footer */}
-      <div className="p-2 space-y-0.5">
-        <p className="text-[11px] font-semibold leading-snug line-clamp-2">{c.name}</p>
-        {c.sentToAccountName && (
-          <p className="text-[10px] text-muted-foreground">@{c.sentToAccountName}</p>
-        )}
-      </div>
     </div>
   );
 }
