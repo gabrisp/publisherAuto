@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { userTiktokAccounts } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { userTiktokAccounts, carousels } from "@/db/schema";
+import { and, eq, isNull } from "drizzle-orm";
 
 export async function POST(
   req: Request,
@@ -18,6 +18,17 @@ export async function POST(
     .insert(userTiktokAccounts)
     .values({ userId, accountId })
     .onConflictDoNothing();
+
+  // Backfill: carousels already assigned to this account but without a publisher user
+  await db
+    .update(carousels)
+    .set({ publisherUserId: userId })
+    .where(
+      and(
+        eq(carousels.sentToAccountId, accountId),
+        isNull(carousels.publisherUserId)
+      )
+    );
 
   return NextResponse.json({ ok: true });
 }
@@ -39,6 +50,17 @@ export async function DELETE(
       and(
         eq(userTiktokAccounts.userId, userId),
         eq(userTiktokAccounts.accountId, accountId)
+      )
+    );
+
+  // Clear publisherUserId on carousels assigned to this account for this user
+  await db
+    .update(carousels)
+    .set({ publisherUserId: null })
+    .where(
+      and(
+        eq(carousels.sentToAccountId, accountId),
+        eq(carousels.publisherUserId, userId)
       )
     );
 

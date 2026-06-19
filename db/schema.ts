@@ -59,7 +59,7 @@ export const carousels = pgTable("carousels", {
   jsonSource: text("json_source"),
   zipPath: text("zip_path"),
   // TikTok draft info
-  sentToAccountId: text("sent_to_account_id"),
+  sentToAccountId: text("sent_to_account_id").references(() => tiktokAccounts.id, { onDelete: "set null" }),
   sentAt: bigint("sent_at", { mode: "number" }),
   // Publisher user assignment
   publisherUserId: text("publisher_user_id").references(() => publisherUsers.id, { onDelete: "set null" }),
