@@ -172,9 +172,9 @@ export default function SchedulePage() {
   }
 
   return (
-    <div className="relative h-full">
+    <div className={`relative ${trayOpen ? "pb-52" : "pb-14"}`}>
       {/* Timeline */}
-      <div className={`overflow-y-auto ${trayOpen ? "pb-52" : "pb-14"}`}>
+      <div>
         {days.length === 0 ? (
           <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">
             No hay carousels programados
