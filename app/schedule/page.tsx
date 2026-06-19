@@ -221,16 +221,38 @@ export default function SchedulePage() {
                   {/* Right: day header + carousels */}
                   <div className="flex-1 min-w-0 pb-8">
                     {/* Day header */}
-                    <div className={`flex items-baseline gap-1.5 mb-3 mt-0.5 ${isPast && !isToday ? "opacity-50" : ""}`}>
-                      <span className={`text-[11px] font-bold uppercase tracking-wider ${isToday ? "text-primary" : "text-muted-foreground"}`}>
-                        {fmt.weekday}
-                      </span>
-                      <span className={`text-2xl font-black leading-none ${isToday ? "text-primary" : ""}`}>
-                        {fmt.day}
-                      </span>
-                      <span className={`text-xs capitalize ${isToday ? "text-primary/70" : "text-muted-foreground"}`}>
-                        {fmt.month}
-                      </span>
+                    <div className={`flex items-center gap-3 mb-3 mt-0.5 flex-wrap ${isPast && !isToday ? "opacity-50" : ""}`}>
+                      <div className="flex items-baseline gap-1.5">
+                        <span className={`text-[11px] font-bold uppercase tracking-wider ${isToday ? "text-primary" : "text-muted-foreground"}`}>
+                          {fmt.weekday}
+                        </span>
+                        <span className={`text-2xl font-black leading-none ${isToday ? "text-primary" : ""}`}>
+                          {fmt.day}
+                        </span>
+                        <span className={`text-xs capitalize ${isToday ? "text-primary/70" : "text-muted-foreground"}`}>
+                          {fmt.month}
+                        </span>
+                      </div>
+                      {carousels.length > 0 && (() => {
+                        const byAccount = new Map<string, number>();
+                        for (const c of carousels) {
+                          const key = c.sentToAccountName ?? "Sin cuenta";
+                          byAccount.set(key, (byAccount.get(key) ?? 0) + 1);
+                        }
+                        const accountEntries = [...byAccount.entries()].filter(([k]) => k !== "Sin cuenta");
+                        return (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[11px] font-semibold text-muted-foreground bg-muted rounded-full px-2 py-0.5">
+                              {carousels.length}
+                            </span>
+                            {accountEntries.map(([name, count]) => (
+                              <span key={name} className="text-[11px] text-muted-foreground bg-muted/60 rounded-full px-2 py-0.5 whitespace-nowrap">
+                                {count} @{name}
+                              </span>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* Carousel row — drop zone */}
