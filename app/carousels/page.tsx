@@ -147,17 +147,17 @@ export default function CarouselsPage() {
     setSearch("");
   }, [showArchived]);
 
-  /* rubber-band: track mouse while dragging */
+  /* rubber-band: pointer events (mouse + touch) */
   useEffect(() => {
     if (!selectMode) { setRubberBand(null); return; }
 
-    const onMouseMove = (e: MouseEvent) => {
+    const onPointerMove = (e: PointerEvent) => {
       if (!rubberBandOrigin.current) return;
       const { x, y } = rubberBandOrigin.current;
       setRubberBand({ x1: x, y1: y, x2: e.clientX, y2: e.clientY });
     };
 
-    const onMouseUp = (e: MouseEvent) => {
+    const onPointerUp = (e: PointerEvent) => {
       if (!rubberBandOrigin.current) return;
       const { x, y } = rubberBandOrigin.current;
       rubberBandOrigin.current = null;
@@ -167,7 +167,6 @@ export default function CarouselsPage() {
       const isDrag = dx > 6 || dy > 6;
 
       if (isDrag) {
-        // Rubber-band: select all cards that intersect the rectangle
         const minX = Math.min(x, e.clientX);
         const maxX = Math.max(x, e.clientX);
         const minY = Math.min(y, e.clientY);
@@ -188,7 +187,6 @@ export default function CarouselsPage() {
           });
         }
       } else if (rubberBandPendingId.current) {
-        // Simple click on a card: toggle it
         const id = rubberBandPendingId.current;
         setSelected((prev) => {
           const next = new Set(prev);
@@ -201,11 +199,13 @@ export default function CarouselsPage() {
       setRubberBand(null);
     };
 
-    document.addEventListener("mousemove", onMouseMove);
-    document.addEventListener("mouseup", onMouseUp);
+    document.addEventListener("pointermove", onPointerMove);
+    document.addEventListener("pointerup", onPointerUp);
+    document.addEventListener("pointercancel", onPointerUp);
     return () => {
-      document.removeEventListener("mousemove", onMouseMove);
-      document.removeEventListener("mouseup", onMouseUp);
+      document.removeEventListener("pointermove", onPointerMove);
+      document.removeEventListener("pointerup", onPointerUp);
+      document.removeEventListener("pointercancel", onPointerUp);
     };
   }, [selectMode]);
 
@@ -735,7 +735,7 @@ export default function CarouselsPage() {
       ) : (
         <div
           className="flex flex-col gap-6"
-          onMouseDown={(e) => {
+          onPointerDown={(e) => {
             if (!selectMode) return;
             if ((e.target as Element).closest("[data-carousel-id]")) return;
             e.preventDefault();
@@ -1254,7 +1254,7 @@ function CarouselGridCard({
         ${selected ? "border-primary ring-2 ring-primary" : "hover:border-foreground/20"}
         ${selectMode ? "select-none cursor-crosshair" : "cursor-pointer active:scale-[0.99]"}`}
       onClick={selectMode ? undefined : onOpen}
-      onMouseDown={selectMode ? (e) => { e.preventDefault(); onRubberBandStart?.(c.id, e.clientX, e.clientY); } : undefined}
+      onPointerDown={selectMode ? (e) => { e.preventDefault(); onRubberBandStart?.(c.id, e.clientX, e.clientY); } : undefined}
     >
       {selectMode && <div className="absolute inset-0 z-20" />}
 
@@ -1323,7 +1323,7 @@ function CarouselRowItem({
         ${selected ? "border-primary ring-2 ring-primary" : "hover:border-foreground/20"}
         ${selectMode ? "select-none cursor-crosshair" : "cursor-pointer hover:shadow-sm active:scale-[0.995]"}`}
       onClick={selectMode ? undefined : onOpen}
-      onMouseDown={selectMode ? (e) => { e.preventDefault(); onRubberBandStart?.(c.id, e.clientX, e.clientY); } : undefined}
+      onPointerDown={selectMode ? (e) => { e.preventDefault(); onRubberBandStart?.(c.id, e.clientX, e.clientY); } : undefined}
     >
       {selectMode && <div className="absolute inset-0 z-20 rounded-xl" />}
       <div className="relative z-30">
