@@ -3,16 +3,10 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
   ChevronLeft,
   ChevronRight,
   Copy,
-  Upload,
+  Shuffle,
   ChevronDown,
   Trash2,
   X,
@@ -29,8 +23,8 @@ import {
   Calendar,
   BarChart2,
   CheckCircle2,
+  Loader2,
 } from "lucide-react";
-import Link from "next/link";
 import { toast } from "sonner";
 import { useParams, useRouter } from "next/navigation";
 import useSWR from "swr";
@@ -81,7 +75,6 @@ type CarouselDetail = {
 type FolderRecord = { id: string; name: string };
 
 type PickerImage = { id: string; path: string; tag: string; originalName: string; scope: string };
-type TikTokAccount = { id: string; name: string };
 
 /* ── Helpers ─────────────────────────────────────────────────────────── */
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -103,7 +96,6 @@ export default function CarouselDetailPage() {
   const router = useRouter();
 
   const { data: carousel, mutate } = useSWR<CarouselDetail>(`/api/carousels/${id}`, fetcher);
-  const { data: accounts = [] } = useSWR<TikTokAccount[]>("/api/tiktok/accounts", fetcher);
   const { data: folders = [] } = useSWR<FolderRecord[]>("/api/folders", fetcher);
   // Lista completa para prev/next — usa el mismo caché que /carousels
   const { data: allCarousels = [] } = useSWR<{ id: string }[]>("/api/carousels", fetcher);
@@ -149,7 +141,7 @@ export default function CarouselDetailPage() {
   const [savingText, setSavingText] = useState(false);
 
   // Acciones
-  const [uploading, setUploading] = useState(false);
+  const [shuffling, setShuffling] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [sharing, setSharing] = useState(false);
 
@@ -203,26 +195,23 @@ export default function CarouselDetailPage() {
     }
   }
 
-  async function handleUpload(accountId: string) {
+  async function handleShuffle() {
     if (!carousel) return;
-    setUploading(true);
+    setShuffling(true);
     try {
-      const res = await fetch(`/api/carousels/${carousel.id}/tiktok`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ accountId }),
-      });
+      const res = await fetch(`/api/carousels/${carousel.id}/shuffle`, { method: "POST" });
       const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error ?? "Error al subir");
+      if (!res.ok) { toast.error("Error al barajar"); return; }
+      if (data.shuffled === 0) {
+        toast("Sin alternativas para ninguna imagen", { duration: 2000 });
       } else {
-        toast.success("Subido como draft ✓");
+        toast.success(`${data.shuffled} imagen${data.shuffled > 1 ? "es" : ""} cambiada${data.shuffled > 1 ? "s" : ""}`);
         await mutate();
       }
     } catch {
       toast.error("Error de conexión");
     } finally {
-      setUploading(false);
+      setShuffling(false);
     }
   }
 
@@ -238,14 +227,7 @@ export default function CarouselDetailPage() {
     }
   }
 
-  // Appends a random byte after the JPEG EOI marker (FF D9).
-  // Decoders ignore trailing data so quality is untouched, but the file
-  // hash changes — enough to avoid TikTok file-level duplicate detection.
-  async function rehashImage(blob: Blob): Promise<Blob> {
-    const arr = await blob.arrayBuffer();
-    const extra = new Uint8Array([Math.floor(Math.random() * 256)]);
-    return new Blob([arr, extra], { type: blob.type });
-  }
+
 
   async function handleShareSlides() {
     if (!carousel || sharing) return;
@@ -256,8 +238,7 @@ export default function CarouselDetailPage() {
         const url = slide.generatedImagePath ?? slide.imagePath;
         if (!url) continue;
         const raw = await fetch(url).then((r) => r.blob());
-        const unique = await rehashImage(raw);
-        files.push(new File([unique], `slide-${slide.order + 1}.jpg`, { type: "image/jpeg" }));
+        files.push(new File([raw], `slide-${slide.order + 1}.jpg`, { type: "image/jpeg" }));
       }
       if (files.length === 0) { toast.error("Sin imágenes"); return; }
 
@@ -433,8 +414,7 @@ export default function CarouselDetailPage() {
     );
   }
 
-  const isSent = !!carousel.sentAt;
-  const isPending = !isSent;
+  const isPending = !carousel.publishedAt;
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const idSlideUrl = supabaseUrl
     ? `${supabaseUrl}/storage/v1/object/public/uploads/generated/idslide_${carousel.id}.jpg`
@@ -468,40 +448,20 @@ export default function CarouselDetailPage() {
 
           <div className="flex-1" />
 
-          {isPending && (
-            <>
-              {accounts.length > 0 ? (
-                <DropdownMenu>
-                  {/* @ts-expect-error radix asChild */}
-                  <DropdownMenuTrigger asChild>
-                    <Button disabled={uploading} className="gap-2">
-                      <Upload className="h-4 w-4" />
-                      {uploading ? "Subiendo…" : "Subir a TikTok"}
-                      <ChevronDown className="h-3.5 w-3.5 opacity-70" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    {accounts.map((acc) => (
-                      <DropdownMenuItem key={acc.id} onClick={() => handleUpload(acc.id)}>
-                        @{acc.name}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              ) : (
-                <Link href="/tiktok">
-                  <Button variant="outline">Conectar TikTok</Button>
-                </Link>
-              )}
-              <button onClick={handleDelete} disabled={deleting}
-                className="h-9 w-9 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </>
-          )}
-
+          <button
+            onClick={handleShuffle}
+            disabled={shuffling}
+            title="Barajar imágenes"
+            className="h-9 w-9 flex items-center justify-center rounded-lg border text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors disabled:opacity-40"
+          >
+            {shuffling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shuffle className="h-4 w-4" />}
+          </button>
+          <button onClick={handleDelete} disabled={deleting}
+            className="h-9 w-9 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
+            <Trash2 className="h-4 w-4" />
+          </button>
           <a href={`/api/carousels/${carousel.id}/download`}
-            className="hidden md:block text-xs text-muted-foreground hover:text-foreground transition-colors px-1 py-1">
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors px-1 py-1">
             ZIP
           </a>
         </div>
@@ -511,9 +471,14 @@ export default function CarouselDetailPage() {
       <div>
         <div className="flex items-center gap-2 flex-wrap">
           <h1 className="text-xl font-bold leading-tight">{carousel.name}</h1>
-          {isSent && (
-            <span className="text-xs bg-green-500/15 text-green-600 dark:text-green-400 rounded-full px-2 py-0.5 font-semibold">
-              Enviado
+          {!!carousel.publishedAt && (
+            <span className="text-xs bg-purple-500/15 text-purple-600 dark:text-purple-400 rounded-full px-2 py-0.5 font-semibold">
+              Publicado
+            </span>
+          )}
+          {!!carousel.sentAt && !carousel.publishedAt && (
+            <span className="text-xs bg-amber-500/15 text-amber-600 dark:text-amber-400 rounded-full px-2 py-0.5 font-semibold">
+              Draft
             </span>
           )}
           {carousel.archivedAt && (
@@ -524,10 +489,6 @@ export default function CarouselDetailPage() {
         </div>
         <p className="text-xs text-muted-foreground mt-0.5">
           {[carousel.influencerName, carousel.appName].filter(Boolean).join(" × ")}
-          {carousel.sentToAccountName && (
-            <span className="ml-2 font-medium text-foreground">· @{carousel.sentToAccountName}</span>
-          )}
-          {carousel.sentAt && <span className="ml-1">· {fmtDate(carousel.sentAt)}</span>}
         </p>
 
         {/* Folder + archive actions */}
@@ -608,8 +569,8 @@ export default function CarouselDetailPage() {
         </div>
       </div>
 
-      {/* ── Desktop tabs ── */}
-      <div className="hidden md:flex items-center gap-1 border-b">
+      {/* ── Tabs ── */}
+      <div className="flex items-center gap-1 border-b">
         {(["contenido", "stats"] as const).map((t) => (
           <button
             key={t}
@@ -625,8 +586,8 @@ export default function CarouselDetailPage() {
         ))}
       </div>
 
-      {/* ── Stats tab (desktop only) ── */}
-      <div className={activeTab !== "stats" ? "hidden" : "hidden md:block"}>
+      {/* ── Stats tab ── */}
+      <div className={activeTab !== "stats" ? "hidden" : "block"}>
         <div className="max-w-md space-y-6">
           {/* Draft + Published toggles */}
           <div className="space-y-2">
@@ -714,8 +675,8 @@ export default function CarouselDetailPage() {
         </div>
       </div>
 
-      {/* ── Contenido: 2 columnas en desktop, 1 en móvil ── */}
-      <div className={`grid grid-cols-1 md:grid-cols-5 gap-6 ${activeTab === "stats" ? "md:hidden" : ""}`}>
+      {/* ── Contenido ── */}
+      <div className={`grid grid-cols-1 md:grid-cols-5 gap-6 ${activeTab === "stats" ? "hidden" : ""}`}>
         {/* Slides */}
         <div className="md:col-span-2 space-y-3">
           <div className="flex items-center justify-between">
