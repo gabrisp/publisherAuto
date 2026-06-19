@@ -117,9 +117,9 @@ export const publisherUsers = pgTable("publisher_users", {
 export const tiktokAccounts = pgTable("tiktok_accounts", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
-  tiktokUserId: text("tiktok_user_id").notNull().unique(),
+  tiktokUserId: text("tiktok_user_id").unique(),
   avatarUrl: text("avatar_url"),
-  accessToken: text("access_token").notNull(),
+  accessToken: text("access_token"),
   refreshToken: text("refresh_token"),
   tokenExpiresAt: bigint("token_expires_at", { mode: "number" }),
   createdAt: bigint("created_at", { mode: "number" }).notNull(),

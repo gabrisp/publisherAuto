@@ -74,7 +74,7 @@ export default function CarouselsPage() {
   const apiUrl = showArchived ? "/api/carousels?archived=1" : "/api/carousels";
   const { data: all = [], mutate } = useSWR<Carousel[]>(apiUrl, fetcher, SWR_OPTS);
   const { data: folders = [], mutate: mutateFolders } = useSWR<FolderRecord[]>("/api/folders", fetcher, SWR_OPTS);
-  const { data: users = [] } = useSWR<{ id: string; username: string }[]>("/api/users", fetcher, SWR_OPTS);
+  const { data: tiktokAccounts = [] } = useSWR<{ id: string; name: string; avatarUrl: string | null }[]>("/api/tiktok/accounts", fetcher, SWR_OPTS);
 
   /* filter / view */
   const [search, setSearch] = useState("");
@@ -584,7 +584,7 @@ export default function CarouselsPage() {
         </div>
 
         {/* Secondary filters */}
-        {(appOptions.length > 1 || influencerOptions.length > 1 || users.length > 0) && (
+        {(appOptions.length > 1 || influencerOptions.length > 1 || tiktokAccounts.length > 0) && (
           <div className="flex items-center gap-2 flex-wrap">
             {appOptions.length > 1 && (
               <select value={filterApp} onChange={(e) => setFilterApp(e.target.value)}
@@ -600,7 +600,7 @@ export default function CarouselsPage() {
                 {influencerOptions.map((i) => <option key={i} value={i}>{i}</option>)}
               </select>
             )}
-            {users.length > 0 && (
+            {tiktokAccounts.length > 0 && (
               <select value={filterAssigned} onChange={(e) => setFilterAssigned(e.target.value as "all" | "assigned" | "unassigned")}
                 className="rounded-lg border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
                 <option value="all">Todos (asignados)</option>
@@ -834,19 +834,19 @@ export default function CarouselsPage() {
               <div className="border-t my-1" />
               <button
                 className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-muted/60"
-                onClick={async (e) => { e.stopPropagation(); const cid = contextMenu.carouselId; setContextMenu(null); await fetch(`/api/carousels/${cid}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ publisherUserId: null }) }); mutate(); }}
+                onClick={async (e) => { e.stopPropagation(); const cid = contextMenu.carouselId; setContextMenu(null); await fetch(`/api/carousels/${cid}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sentToAccountId: null }) }); mutate(); }}
               >
                 <X className="h-3.5 w-3.5" />
                 Sin asignar
               </button>
-              {users.map((u) => (
+              {tiktokAccounts.map((acc) => (
                 <button
-                  key={u.id}
+                  key={acc.id}
                   className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-muted/60"
-                  onClick={async (e) => { e.stopPropagation(); const cid = contextMenu.carouselId; setContextMenu(null); await fetch(`/api/carousels/${cid}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ publisherUserId: u.id }) }); mutate(); toast.success(`Asignado a @${u.username}`); }}
+                  onClick={async (e) => { e.stopPropagation(); const cid = contextMenu.carouselId; setContextMenu(null); await fetch(`/api/carousels/${cid}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sentToAccountId: acc.id }) }); mutate(); toast.success(`Asignado a @${acc.name}`); }}
                 >
                   <UserCircle className="h-3.5 w-3.5" />
-                  @{u.username}
+                  @{acc.name}
                 </button>
               ))}
             </>
@@ -904,7 +904,7 @@ export default function CarouselsPage() {
                   <ChevronRight className="h-3 w-3 ml-auto" />
                 </button>
               )}
-              {users.length > 0 && (
+              {tiktokAccounts.length > 0 && (
                 <button
                   className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-muted/60"
                   onClick={(e) => { e.stopPropagation(); setContextMenu((m) => m ? { ...m, submenu: "assign" } : null); }}
@@ -912,7 +912,7 @@ export default function CarouselsPage() {
                   <UserCircle className="h-3.5 w-3.5" />
                   {(() => {
                     const c = all.find((c) => c.id === contextMenu?.carouselId);
-                    return c?.publisherUsername ? `@${c.publisherUsername}` : "Asignar usuario";
+                    return c?.sentToAccountName ? `@${c.sentToAccountName}` : "Asignar cuenta";
                   })()}
                   <ChevronRight className="h-3 w-3 ml-auto" />
                 </button>

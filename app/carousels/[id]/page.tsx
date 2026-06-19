@@ -68,17 +68,18 @@ type CarouselDetail = {
   videoHashtags: string | null;
   zipPath: string | null;
   sentAt: number | null;
-  createdAt: number;
-  appName: string | null;
-  influencerName: string | null;
+  sentToAccountId: string | null;
   sentToAccountName: string | null;
   publisherUserId: string | null;
   publisherUsername: string | null;
+  createdAt: number;
+  appName: string | null;
+  influencerName: string | null;
   slides: Slide[];
 };
 
 type FolderRecord = { id: string; name: string };
-type PublisherUserRecord = { id: string; username: string };
+type TikTokAccountRecord = { id: string; name: string; avatarUrl: string | null };
 
 type PickerImage = { id: string; path: string; tag: string; originalName: string; scope: string };
 
@@ -103,7 +104,7 @@ export default function CarouselDetailPage() {
 
   const { data: carousel, mutate } = useSWR<CarouselDetail>(`/api/carousels/${id}`, fetcher);
   const { data: folders = [] } = useSWR<FolderRecord[]>("/api/folders", fetcher);
-  const { data: publisherUsersList = [] } = useSWR<PublisherUserRecord[]>("/api/users", fetcher);
+  const { data: tiktokAccountsList = [] } = useSWR<TikTokAccountRecord[]>("/api/tiktok/accounts", fetcher);
   // Lista completa para prev/next — usa el mismo caché que /carousels
   const { data: allCarousels = [] } = useSWR<{ id: string }[]>("/api/carousels", fetcher);
   const currentIndex = allCarousels.findIndex((c) => c.id === id);
@@ -565,35 +566,40 @@ export default function CarouselDetailPage() {
             />
           </label>
 
-          {/* Publisher user picker */}
-          {publisherUsersList.length > 0 && (
+          {/* TikTok account picker → auto-assigns publisher user */}
+          {tiktokAccountsList.length > 0 && (
             <div className="relative">
               <button
                 onClick={() => setUserPickerOpen((o) => !o)}
                 className="flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors hover:bg-muted/60 bg-muted/30 text-muted-foreground hover:text-foreground"
               >
                 <UserCircle className="h-3 w-3 shrink-0" />
-                {carousel.publisherUsername ? `@${carousel.publisherUsername}` : "Asignar"}
+                {carousel.sentToAccountName ? `@${carousel.sentToAccountName}` : "Cuenta"}
+                {carousel.publisherUsername && (
+                  <span className="text-[10px] opacity-60">· {carousel.publisherUsername}</span>
+                )}
                 <ChevronDown className="h-2.5 w-2.5 opacity-50" />
               </button>
               {userPickerOpen && (
-                <div className="absolute top-full mt-1.5 left-0 z-50 bg-background border shadow-xl rounded-xl overflow-hidden min-w-40 py-1">
+                <div className="absolute top-full mt-1.5 left-0 z-50 bg-background border shadow-xl rounded-xl overflow-hidden min-w-44 py-1">
                   <button
                     className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-muted/60"
-                    onClick={() => { patchCarousel({ publisherUserId: null }); setUserPickerOpen(false); }}
+                    onClick={() => { patchCarousel({ sentToAccountId: null }); setUserPickerOpen(false); }}
                   >
                     <X className="h-3 w-3" />
                     Sin asignar
                   </button>
                   <div className="border-t my-1" />
-                  {publisherUsersList.map((u) => (
+                  {tiktokAccountsList.map((acc) => (
                     <button
-                      key={u.id}
-                      className={`flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-muted/60 ${carousel.publisherUserId === u.id ? "font-semibold text-primary" : ""}`}
-                      onClick={() => { patchCarousel({ publisherUserId: u.id }); setUserPickerOpen(false); toast.success(`Asignado a @${u.username}`, { duration: 1500 }); }}
+                      key={acc.id}
+                      className={`flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-muted/60 ${carousel.sentToAccountId === acc.id ? "font-semibold text-primary" : ""}`}
+                      onClick={() => { patchCarousel({ sentToAccountId: acc.id }); setUserPickerOpen(false); toast.success(`Asignado a @${acc.name}`, { duration: 1500 }); }}
                     >
-                      <UserCircle className="h-3 w-3" />
-                      @{u.username}
+                      {acc.avatarUrl
+                        ? <img src={acc.avatarUrl} alt={acc.name} className="h-4 w-4 rounded-full object-cover" />
+                        : <UserCircle className="h-3 w-3" />}
+                      @{acc.name}
                     </button>
                   ))}
                 </div>

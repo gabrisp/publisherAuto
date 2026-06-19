@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { carousels, carouselSlides, apps, influencers, images, tiktokAccounts, publisherUsers } from "@/db/schema";
+import { carousels, carouselSlides, apps, influencers, images, tiktokAccounts, publisherUsers, userTiktokAccounts } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { deleteFile, urlToStoragePath } from "@/lib/supabase";
 import { now } from "@/lib/ids";
@@ -28,6 +28,7 @@ export async function GET(
       sentAt: carousels.sentAt,
       publisherUserId: carousels.publisherUserId,
       scheduledTime: carousels.scheduledTime,
+      sentToAccountId: carousels.sentToAccountId,
       createdAt: carousels.createdAt,
       appName: apps.name,
       influencerName: influencers.name,
@@ -77,6 +78,20 @@ export async function PATCH(
   if ("publishedAt" in body) patch.publishedAt = body.publishedAt ?? null;
   if ("stats" in body) patch.stats = body.stats ? JSON.stringify(body.stats) : null;
   if ("publisherUserId" in body) patch.publisherUserId = body.publisherUserId ?? null;
+
+  // When assigning a TikTok account, auto-assign the publisher user who owns it
+  if ("sentToAccountId" in body) {
+    patch.sentToAccountId = body.sentToAccountId ?? null;
+    if (body.sentToAccountId) {
+      const [uta] = await db
+        .select({ userId: userTiktokAccounts.userId })
+        .from(userTiktokAccounts)
+        .where(eq(userTiktokAccounts.accountId, body.sentToAccountId));
+      patch.publisherUserId = uta?.userId ?? null;
+    } else {
+      patch.publisherUserId = null;
+    }
+  }
 
   const [updated] = await db
     .update(carousels)
