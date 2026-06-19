@@ -7,7 +7,7 @@ import {
   Search, X, LayoutGrid, List, Trash2, CheckSquare, Plus,
   FileJson, ClipboardPaste, Folder, FolderOpen, MoreHorizontal,
   ChevronRight, Copy, MoveRight, Pencil, FolderInput, Archive,
-  ArchiveRestore, Calendar, ArrowUpDown, Loader2,
+  ArchiveRestore, Calendar, ArrowUpDown, Loader2, MousePointer2,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -78,6 +78,7 @@ export default function CarouselsPage() {
   const [filterApp, setFilterApp] = useState("");
   const [filterInfluencer, setFilterInfluencer] = useState("");
   const [view, setView] = useState<ViewMode>("grid");
+  const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   /* folder state */
@@ -136,6 +137,7 @@ export default function CarouselsPage() {
   /* reset selection + folder when switching archive mode */
   useEffect(() => {
     setSelected(new Set());
+    setSelectMode(false);
     setActiveFolder(null);
     setSearch("");
   }, [showArchived]);
@@ -393,7 +395,7 @@ export default function CarouselsPage() {
     });
   }
   function selectAll() { setSelected(new Set(sorted.map((c) => c.id))); }
-  function clearSelection() { setSelected(new Set()); }
+  function clearSelection() { setSelected(new Set()); setSelectMode(false); }
 
   async function handleBulkDelete() {
     if (!confirm(`¿Eliminar ${selected.size} carousel${selected.size > 1 ? "s" : ""}?`)) return;
@@ -486,6 +488,13 @@ export default function CarouselsPage() {
                 {v === "grid" ? <LayoutGrid className="h-3.5 w-3.5" /> : <List className="h-3.5 w-3.5" />}
               </button>
             ))}
+            <button
+              onClick={() => { setSelectMode((s) => !s); if (selectMode) setSelected(new Set()); }}
+              title="Modo selección"
+              className={`p-1.5 rounded-md transition-colors ${selectMode ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              <MousePointer2 className="h-3.5 w-3.5" />
+            </button>
           </div>
 
           <button
@@ -664,6 +673,7 @@ export default function CarouselsPage() {
                       key={c.id}
                       c={c}
                       selected={selected.has(c.id)}
+                      selectMode={selectMode}
                       onToggleSelect={(e) => toggleSelect(c.id, e)}
                       onOpen={() => router.push(`/carousels/${c.id}`)}
                       onContextMenu={(e) => openContextMenu(c.id, e)}
@@ -680,6 +690,7 @@ export default function CarouselsPage() {
                       key={c.id}
                       c={c}
                       selected={selected.has(c.id)}
+                      selectMode={selectMode}
                       onToggleSelect={(e) => toggleSelect(c.id, e)}
                       onOpen={() => router.push(`/carousels/${c.id}`)}
                       onContextMenu={(e) => openContextMenu(c.id, e)}
@@ -1126,10 +1137,11 @@ function Checkbox({ checked, onClick }: { checked: boolean; onClick: (e: React.M
 
 /* ── Grid card ───────────────────────────────────────────────────────── */
 function CarouselGridCard({
-  c, selected, onToggleSelect, onOpen, onContextMenu, onDragStart, onDragEnd, onDateChange,
+  c, selected, selectMode, onToggleSelect, onOpen, onContextMenu, onDragStart, onDragEnd, onDateChange,
 }: {
   c: Carousel;
   selected: boolean;
+  selectMode: boolean;
   onToggleSelect: (e: React.MouseEvent) => void;
   onOpen: () => void;
   onContextMenu: (e: React.MouseEvent) => void;
@@ -1141,24 +1153,25 @@ function CarouselGridCard({
     <div
       role="button"
       tabIndex={0}
-      draggable
+      draggable={!selectMode}
       onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; onDragStart(); }}
       onDragEnd={onDragEnd}
       className={`group relative flex flex-col rounded-2xl border bg-card overflow-hidden transition-all cursor-pointer hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
-        ${selected ? "border-primary ring-1 ring-primary" : "hover:border-foreground/20"}`}
-      onClick={onOpen}
-      onKeyDown={(e) => e.key === "Enter" && onOpen()}
+        ${selected ? "border-primary ring-2 ring-primary" : "hover:border-foreground/20"}
+        ${selectMode ? "select-none" : ""}`}
+      onClick={selectMode ? onToggleSelect : onOpen}
+      onKeyDown={(e) => e.key === "Enter" && (selectMode ? onToggleSelect(e as unknown as React.MouseEvent) : onOpen())}
     >
       <div
-        className={`absolute top-2 left-2 z-10 transition-opacity ${selected ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
-        onClick={onToggleSelect}
+        className={`absolute top-2 left-2 z-10 transition-opacity ${selected || selectMode ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+        onClick={(e) => e.stopPropagation()}
       >
         <Checkbox checked={selected} onClick={onToggleSelect} />
       </div>
 
       <button
-        className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 flex items-center justify-center rounded-lg bg-background/80 border backdrop-blur-sm hover:bg-background"
-        onClick={onContextMenu}
+        className={`absolute top-2 right-2 z-10 transition-opacity h-6 w-6 flex items-center justify-center rounded-lg bg-background/80 border backdrop-blur-sm hover:bg-background ${selectMode ? "opacity-0 pointer-events-none" : "opacity-0 group-hover:opacity-100"}`}
+        onClick={(e) => { e.stopPropagation(); onContextMenu(e); }}
       >
         <MoreHorizontal className="h-3.5 w-3.5" />
       </button>
@@ -1190,10 +1203,11 @@ function CarouselGridCard({
 
 /* ── Row item ────────────────────────────────────────────────────────── */
 function CarouselRowItem({
-  c, selected, onToggleSelect, onOpen, onContextMenu, onDragStart, onDragEnd, onDateChange,
+  c, selected, selectMode, onToggleSelect, onOpen, onContextMenu, onDragStart, onDragEnd, onDateChange,
 }: {
   c: Carousel;
   selected: boolean;
+  selectMode: boolean;
   onToggleSelect: (e: React.MouseEvent) => void;
   onOpen: () => void;
   onContextMenu: (e: React.MouseEvent) => void;
@@ -1205,15 +1219,18 @@ function CarouselRowItem({
     <div
       role="button"
       tabIndex={0}
-      draggable
+      draggable={!selectMode}
       onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; onDragStart(); }}
       onDragEnd={onDragEnd}
       className={`group flex items-center gap-3 rounded-xl border bg-card px-4 py-3 cursor-pointer transition-all hover:shadow-sm active:scale-[0.995] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
-        ${selected ? "border-primary ring-1 ring-primary" : "hover:border-foreground/20"}`}
-      onClick={onOpen}
-      onKeyDown={(e) => e.key === "Enter" && onOpen()}
+        ${selected ? "border-primary ring-2 ring-primary" : "hover:border-foreground/20"}
+        ${selectMode ? "select-none" : ""}`}
+      onClick={selectMode ? onToggleSelect : onOpen}
+      onKeyDown={(e) => e.key === "Enter" && (selectMode ? onToggleSelect(e as unknown as React.MouseEvent) : onOpen())}
     >
-      <Checkbox checked={selected} onClick={onToggleSelect} />
+      <div onClick={(e) => e.stopPropagation()}>
+        <Checkbox checked={selected} onClick={onToggleSelect} />
+      </div>
       <SlideThumbs slides={c.slides} small />
       <span className="text-xl font-black font-mono tracking-wide shrink-0 w-14 leading-none">{c.shortId ?? "—"}</span>
       <div className="flex-1 min-w-0">
@@ -1232,8 +1249,8 @@ function CarouselRowItem({
         </span>
       )}
       <button
-        className="opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7 flex items-center justify-center rounded-lg border bg-background hover:bg-muted/60 shrink-0"
-        onClick={onContextMenu}
+        className={`transition-opacity h-7 w-7 flex items-center justify-center rounded-lg border bg-background hover:bg-muted/60 shrink-0 ${selectMode ? "opacity-0 pointer-events-none" : "opacity-0 group-hover:opacity-100"}`}
+        onClick={(e) => { e.stopPropagation(); onContextMenu(e); }}
       >
         <MoreHorizontal className="h-3.5 w-3.5" />
       </button>
