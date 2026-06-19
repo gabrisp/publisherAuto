@@ -1154,17 +1154,20 @@ function CarouselGridCard({
       role="button"
       tabIndex={0}
       draggable={!selectMode}
-      onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; onDragStart(); }}
+      onDragStart={(e) => { if (selectMode) { e.preventDefault(); return; } e.dataTransfer.effectAllowed = "move"; onDragStart(); }}
       onDragEnd={onDragEnd}
       className={`group relative flex flex-col rounded-2xl border bg-card overflow-hidden transition-all cursor-pointer hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
         ${selected ? "border-primary ring-2 ring-primary" : "hover:border-foreground/20"}
         ${selectMode ? "select-none" : ""}`}
-      onClick={selectMode ? onToggleSelect : onOpen}
-      onKeyDown={(e) => e.key === "Enter" && (selectMode ? onToggleSelect(e as unknown as React.MouseEvent) : onOpen())}
+      onClick={selectMode ? undefined : onOpen}
     >
+      {/* Select mode overlay — sits above all children, captures any click */}
+      {selectMode && (
+        <div className="absolute inset-0 z-20 cursor-pointer" onClick={onToggleSelect} />
+      )}
+
       <div
-        className={`absolute top-2 left-2 z-10 transition-opacity ${selected || selectMode ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
-        onClick={(e) => e.stopPropagation()}
+        className={`absolute top-2 left-2 z-30 transition-opacity ${selected || selectMode ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
       >
         <Checkbox checked={selected} onClick={onToggleSelect} />
       </div>
@@ -1220,15 +1223,17 @@ function CarouselRowItem({
       role="button"
       tabIndex={0}
       draggable={!selectMode}
-      onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; onDragStart(); }}
+      onDragStart={(e) => { if (selectMode) { e.preventDefault(); return; } e.dataTransfer.effectAllowed = "move"; onDragStart(); }}
       onDragEnd={onDragEnd}
-      className={`group flex items-center gap-3 rounded-xl border bg-card px-4 py-3 cursor-pointer transition-all hover:shadow-sm active:scale-[0.995] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
+      className={`group relative flex items-center gap-3 rounded-xl border bg-card px-4 py-3 cursor-pointer transition-all hover:shadow-sm active:scale-[0.995] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
         ${selected ? "border-primary ring-2 ring-primary" : "hover:border-foreground/20"}
         ${selectMode ? "select-none" : ""}`}
-      onClick={selectMode ? onToggleSelect : onOpen}
-      onKeyDown={(e) => e.key === "Enter" && (selectMode ? onToggleSelect(e as unknown as React.MouseEvent) : onOpen())}
+      onClick={selectMode ? undefined : onOpen}
     >
-      <div onClick={(e) => e.stopPropagation()}>
+      {selectMode && (
+        <div className="absolute inset-0 z-20 cursor-pointer rounded-xl" onClick={onToggleSelect} />
+      )}
+      <div className="relative z-30">
         <Checkbox checked={selected} onClick={onToggleSelect} />
       </div>
       <SlideThumbs slides={c.slides} small />
