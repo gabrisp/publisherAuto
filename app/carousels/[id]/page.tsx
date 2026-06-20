@@ -144,6 +144,22 @@ export default function CarouselDetailPage() {
     }
   }, [carousel?.stats]);
 
+  // Caption editing
+  const [editingCaption, setEditingCaption] = useState(false);
+  const [captionTitle, setCaptionTitle] = useState("");
+  const [captionDesc, setCaptionDesc] = useState("");
+  const [captionTags, setCaptionTags] = useState("");
+  const [savingCaption, setSavingCaption] = useState(false);
+  useEffect(() => {
+    if (!carousel) return;
+    setCaptionTitle(carousel.videoTitle ?? "");
+    setCaptionDesc(carousel.videoDescription ?? "");
+    try {
+      const arr: string[] = carousel.videoHashtags ? JSON.parse(carousel.videoHashtags) : [];
+      setCaptionTags(arr.map((h) => h.replace(/^#/, "")).join(" "));
+    } catch { setCaptionTags(""); }
+  }, [carousel?.id]);
+
   // Text editing
   const [editingSlideId, setEditingSlideId] = useState<string | null>(null);
   const [editingTexts, setEditingTexts] = useState<TextEl[]>([]);
@@ -159,6 +175,33 @@ export default function CarouselDetailPage() {
   const [reorderSlides, setReorderSlides] = useState<Slide[]>([]);
   const [reorderSaving, setReorderSaving] = useState(false);
   const dragIndex = useRef<number | null>(null);
+
+  async function saveCaption() {
+    if (!carousel) return;
+    setSavingCaption(true);
+    try {
+      const hashArr = captionTags
+        .split(/[\s,]+/)
+        .map((h) => h.replace(/^#/, "").trim())
+        .filter(Boolean);
+      await fetch(`/api/carousels/${carousel.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          videoTitle: captionTitle.trim() || null,
+          videoDescription: captionDesc.trim() || null,
+          videoHashtags: hashArr.length ? JSON.stringify(hashArr) : null,
+        }),
+      });
+      await mutate();
+      setEditingCaption(false);
+      toast.success("Caption guardado");
+    } catch {
+      toast.error("Error al guardar caption");
+    } finally {
+      setSavingCaption(false);
+    }
+  }
 
   async function openPicker(slideId: string) {
     setPickerSlideId(slideId);
@@ -787,50 +830,119 @@ export default function CarouselDetailPage() {
         {/* Textos */}
         <div className="md:col-span-3 space-y-3">
           {/* Caption de TikTok */}
-          {(carousel.videoTitle || carousel.videoDescription) && (
-            <div className="space-y-2">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold">Caption</h2>
-              {carousel.videoTitle && (
-                <div
-                  className="rounded-lg border bg-muted/30 p-3 cursor-pointer active:bg-muted/60 transition-colors"
-                  onClick={() => {
-                    navigator.clipboard.writeText(carousel.videoTitle!);
-                    toast("✓ Título copiado", { duration: 800 });
-                  }}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-primary">Título</span>
-                    <span className="text-[10px] text-muted-foreground">{carousel.videoTitle.length}/90</span>
-                  </div>
-                  <p className="text-sm leading-snug">{carousel.videoTitle}</p>
+              {editingCaption ? (
+                <div className="flex items-center gap-1">
+                  <button
+                    disabled={savingCaption}
+                    onClick={saveCaption}
+                    className="flex items-center gap-1 h-6 px-2 rounded-md text-[10px] font-medium bg-primary text-primary-foreground disabled:opacity-50"
+                  >
+                    <Check className="h-2.5 w-2.5" />
+                    {savingCaption ? "…" : "Guardar"}
+                  </button>
+                  <button
+                    onClick={() => setEditingCaption(false)}
+                    className="h-6 px-1.5 rounded-md text-[10px] text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
                 </div>
-              )}
-              {carousel.videoDescription && (
-                <div
-                  className="rounded-lg border bg-muted/30 p-3 cursor-pointer active:bg-muted/60 transition-colors"
-                  onClick={() => {
-                    const hashtags = carousel.videoHashtags
-                      ? (JSON.parse(carousel.videoHashtags) as string[]).map((h) => `#${h}`).join(" ")
-                      : "";
-                    const full = hashtags ? `${carousel.videoDescription}\n${hashtags}` : carousel.videoDescription!;
-                    navigator.clipboard.writeText(full);
-                    toast("✓ Descripción copiada", { duration: 800 });
-                  }}
+              ) : (
+                <button
+                  onClick={() => setEditingCaption(true)}
+                  className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/60"
                 >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-primary">Descripción</span>
-                    <Copy className="h-3 w-3 text-muted-foreground" />
-                  </div>
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{carousel.videoDescription}</p>
-                  {carousel.videoHashtags && (
-                    <p className="text-xs text-muted-foreground mt-2">
-                      {(JSON.parse(carousel.videoHashtags) as string[]).map((h) => `#${h}`).join(" ")}
-                    </p>
-                  )}
-                </div>
+                  <Pencil className="h-2.5 w-2.5" />
+                </button>
               )}
             </div>
-          )}
+
+            {editingCaption ? (
+              <div className="space-y-2">
+                <div className="rounded-lg border bg-muted/30 p-3">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-primary">Título</span>
+                    <span className="text-[10px] text-muted-foreground">{captionTitle.length}/90</span>
+                  </div>
+                  <input
+                    value={captionTitle}
+                    onChange={(e) => setCaptionTitle(e.target.value)}
+                    placeholder="Título del vídeo…"
+                    maxLength={90}
+                    className="w-full bg-transparent text-sm outline-none"
+                  />
+                </div>
+                <div className="rounded-lg border bg-muted/30 p-3">
+                  <div className="mb-1.5">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-primary">Descripción</span>
+                  </div>
+                  <textarea
+                    value={captionDesc}
+                    onChange={(e) => setCaptionDesc(e.target.value)}
+                    placeholder="Descripción del vídeo…"
+                    rows={5}
+                    className="w-full bg-transparent text-sm outline-none resize-none leading-relaxed"
+                  />
+                </div>
+                <div className="rounded-lg border bg-muted/30 p-3">
+                  <div className="mb-1.5">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-primary">Hashtags</span>
+                  </div>
+                  <input
+                    value={captionTags}
+                    onChange={(e) => setCaptionTags(e.target.value)}
+                    placeholder="trending viral fyp …"
+                    className="w-full bg-transparent text-sm outline-none"
+                  />
+                  <p className="text-[10px] text-muted-foreground mt-1">Separados por espacio, sin #</p>
+                </div>
+              </div>
+            ) : (carousel.videoTitle || carousel.videoDescription) ? (
+              <div className="space-y-2">
+                {carousel.videoTitle && (
+                  <div
+                    className="rounded-lg border bg-muted/30 p-3 cursor-pointer active:bg-muted/60 transition-colors"
+                    onClick={() => { navigator.clipboard.writeText(carousel.videoTitle!); toast("✓ Título copiado", { duration: 800 }); }}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-primary">Título</span>
+                      <span className="text-[10px] text-muted-foreground">{carousel.videoTitle.length}/90</span>
+                    </div>
+                    <p className="text-sm leading-snug">{carousel.videoTitle}</p>
+                  </div>
+                )}
+                {carousel.videoDescription && (
+                  <div
+                    className="rounded-lg border bg-muted/30 p-3 cursor-pointer active:bg-muted/60 transition-colors"
+                    onClick={() => {
+                      const hashtags = carousel.videoHashtags
+                        ? (JSON.parse(carousel.videoHashtags) as string[]).map((h) => `#${h}`).join(" ")
+                        : "";
+                      const full = hashtags ? `${carousel.videoDescription}\n${hashtags}` : carousel.videoDescription!;
+                      navigator.clipboard.writeText(full);
+                      toast("✓ Descripción copiada", { duration: 800 });
+                    }}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-primary">Descripción</span>
+                      <Copy className="h-3 w-3 text-muted-foreground" />
+                    </div>
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap">{carousel.videoDescription}</p>
+                    {carousel.videoHashtags && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        {(JSON.parse(carousel.videoHashtags) as string[]).map((h) => `#${h}`).join(" ")}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground italic">Sin caption — pulsa el lápiz para añadir</p>
+            )}
+          </div>
 
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold">Textos</h2>

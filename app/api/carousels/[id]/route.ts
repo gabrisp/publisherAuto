@@ -78,6 +78,9 @@ export async function PATCH(
   if ("publishedAt" in body) patch.publishedAt = body.publishedAt ?? null;
   if ("stats" in body) patch.stats = body.stats ? JSON.stringify(body.stats) : null;
   if ("publisherUserId" in body) patch.publisherUserId = body.publisherUserId ?? null;
+  if ("videoTitle" in body) patch.videoTitle = body.videoTitle ?? null;
+  if ("videoDescription" in body) patch.videoDescription = body.videoDescription ?? null;
+  if ("videoHashtags" in body) patch.videoHashtags = body.videoHashtags ?? null;
 
   // When assigning a TikTok account, auto-assign the publisher user who owns it
   if ("sentToAccountId" in body) {
