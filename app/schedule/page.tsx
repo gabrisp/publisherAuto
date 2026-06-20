@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState, useRef, useCallback } from "react";
+import { useMemo, useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
-import { Film, ChevronUp, ChevronDown, CheckCircle, ExternalLink, ChevronLeft, ChevronRight } from "lucide-react";
+import { Film, ChevronUp, ChevronDown, CheckCircle, ExternalLink, ChevronLeft, ChevronRight, GripVertical } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
@@ -55,12 +55,14 @@ function CoverCard({
   c,
   onDragStart,
   onDragEnd,
+  onTouchStart,
   onClick,
   dragging,
 }: {
   c: Carousel;
   onDragStart: () => void;
   onDragEnd: () => void;
+  onTouchStart: () => void;
   onClick: () => void;
   dragging: boolean;
 }) {
@@ -77,6 +79,15 @@ function CoverCard({
       className={`group relative shrink-0 w-[88px] rounded-xl overflow-hidden bg-muted border cursor-grab active:cursor-grabbing transition-opacity select-none ${dragging ? "opacity-30" : "hover:ring-2 hover:ring-primary/50"}`}
       style={{ aspectRatio: "9/16" }}
     >
+      {/* Touch drag handle — tap-hold to drag on mobile/iPad */}
+      <div
+        className="absolute top-1 left-1 z-10 touch-none md:hidden"
+        onTouchStart={(e) => { e.preventDefault(); e.stopPropagation(); onTouchStart(); }}
+      >
+        <div className="bg-black/50 rounded-md p-0.5">
+          <GripVertical className="h-3 w-3 text-white/70" />
+        </div>
+      </div>
       {/* Hover title popover */}
       <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-[calc(100%+6px)] z-50 hidden group-hover:flex">
         <div className="bg-popover text-popover-foreground text-[11px] font-medium rounded-lg px-2.5 py-1.5 shadow-lg border whitespace-nowrap max-w-[200px] truncate">
@@ -125,6 +136,12 @@ export default function SchedulePage() {
   const [preview, setPreview] = useState<Carousel | null>(null);
   const [slideIdx, setSlideIdx] = useState(0);
   const dragCounter = useRef<Record<string, number>>({});
+
+  // Refs for touch drag — avoid stale closures in global listeners
+  const draggingIdRef = useRef<string | null>(null);
+  const allRef = useRef<Carousel[]>([]);
+  useEffect(() => { allRef.current = all; }, [all]);
+  useEffect(() => { draggingIdRef.current = draggingId; }, [draggingId]);
 
   // Always show today + 7 days, plus any other dates that have carousels
   const days = useMemo(() => {
@@ -176,6 +193,47 @@ export default function SchedulePage() {
     },
     [mutate]
   );
+
+  // Touch drag support for iPad/mobile (HTML5 DnD doesn't fire on touch)
+  useEffect(() => {
+    function onTouchMove(e: TouchEvent) {
+      if (!draggingIdRef.current) return;
+      e.preventDefault();
+      const touch = e.touches[0];
+      const el = document.elementFromPoint(touch.clientX, touch.clientY);
+      const dayEl = el?.closest("[data-date]") as HTMLElement | null;
+      const trayEl = el?.closest("[data-tray]");
+      setDropTarget(dayEl?.dataset.date ?? (trayEl ? "__tray" : null));
+    }
+
+    function onTouchEnd(e: TouchEvent) {
+      const id = draggingIdRef.current;
+      if (!id) return;
+      draggingIdRef.current = null;
+      setDraggingId(null);
+      setDropTarget(null);
+      const touch = e.changedTouches[0];
+      const el = document.elementFromPoint(touch.clientX, touch.clientY);
+      const dayEl = el?.closest("[data-date]") as HTMLElement | null;
+      const trayEl = el?.closest("[data-tray]");
+      const c = allRef.current.find((x) => x.id === id);
+      if (!c) return;
+      if (dayEl?.dataset.date && c.scheduledDate !== dayEl.dataset.date) {
+        assignDate(id, dayEl.dataset.date);
+        toast.success(`Movido a ${dayEl.dataset.date}`);
+      } else if (trayEl && c.scheduledDate) {
+        assignDate(id, null);
+        toast.success("Fecha eliminada");
+      }
+    }
+
+    document.addEventListener("touchmove", onTouchMove, { passive: false });
+    document.addEventListener("touchend", onTouchEnd);
+    return () => {
+      document.removeEventListener("touchmove", onTouchMove);
+      document.removeEventListener("touchend", onTouchEnd);
+    };
+  }, [assignDate]);
 
   function handleDropOnDay(date: string) {
     if (!draggingId) return;
@@ -281,6 +339,7 @@ export default function SchedulePage() {
 
                     {/* Carousel row — drop zone */}
                     <div
+                      data-date={date}
                       onDragOver={(e) => onDayDragOver(e, date)}
                       onDragEnter={(e) => onDayDragEnter(e, date)}
                       onDragLeave={(e) => onDayDragLeave(e, date)}
@@ -295,6 +354,7 @@ export default function SchedulePage() {
                           dragging={draggingId === c.id}
                           onDragStart={() => setDraggingId(c.id)}
                           onDragEnd={() => { setDraggingId(null); setDropTarget(null); }}
+                          onTouchStart={() => setDraggingId(c.id)}
                           onClick={() => { setPreview(c); setSlideIdx(0); }}
                         />
                       ))}
@@ -330,6 +390,7 @@ export default function SchedulePage() {
           {/* Tray carousels */}
           {trayOpen && (
             <div
+              data-tray="true"
               onDragOver={(e) => { e.preventDefault(); setDropTarget("__tray"); }}
               onDragLeave={() => setDropTarget((t) => t === "__tray" ? null : t)}
               onDrop={(e) => { e.preventDefault(); setDropTarget(null); handleDropOnTray(); }}
@@ -343,6 +404,7 @@ export default function SchedulePage() {
                   dragging={draggingId === c.id}
                   onDragStart={() => setDraggingId(c.id)}
                   onDragEnd={() => { setDraggingId(null); setDropTarget(null); }}
+                  onTouchStart={() => setDraggingId(c.id)}
                   onClick={() => { setPreview(c); setSlideIdx(0); }}
                 />
               ))}
