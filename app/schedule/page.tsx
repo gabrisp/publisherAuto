@@ -84,12 +84,14 @@ function CoverCard({
         </div>
       </div>
       {src ? (
-        <img src={src} alt={c.name} className="w-full h-full object-cover" />
+        <img src={src} alt={c.name} draggable={false} className="w-full h-full object-cover pointer-events-none" />
       ) : (
-        <div className="w-full h-full flex items-center justify-center">
+        <div className="w-full h-full flex items-center justify-center pointer-events-none">
           <Film className="h-5 w-5 text-muted-foreground/30" />
         </div>
       )}
+      {/* Absorb any stray pointer events so the parent drag works cleanly */}
+      <div className="absolute inset-0 pointer-events-none" />
       {c.publishedAt && (
         <>
           <div className="absolute inset-0 bg-black/40" />
@@ -369,7 +371,7 @@ export default function SchedulePage() {
                     <div className="mx-auto w-full max-w-[360px]">
                       <div className="relative overflow-hidden rounded-[28px] bg-black shadow-2xl" style={{ aspectRatio: "9/16" }}>
                         {src ? (
-                          <img src={src} alt="" className="absolute inset-0 h-full w-full object-cover" />
+                          <img src={src} alt="" draggable={false} className="absolute inset-0 h-full w-full object-cover pointer-events-none" />
                         ) : (
                           <div className="absolute inset-0 flex items-center justify-center">
                             <Film className="h-10 w-10 text-white/20" />
