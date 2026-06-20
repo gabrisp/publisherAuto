@@ -79,9 +79,9 @@ function CoverCard({
       className={`group relative shrink-0 w-[88px] rounded-xl overflow-hidden bg-muted border cursor-grab active:cursor-grabbing transition-opacity select-none ${dragging ? "opacity-30" : "hover:ring-2 hover:ring-primary/50"}`}
       style={{ aspectRatio: "9/16" }}
     >
-      {/* Touch drag handle — tap-hold to drag on mobile/iPad */}
+      {/* Touch drag handle */}
       <div
-        className="absolute top-1 left-1 z-10 touch-none md:hidden"
+        className="absolute top-1 left-1 z-10 touch-none"
         onTouchStart={(e) => { e.preventDefault(); e.stopPropagation(); onTouchStart(); }}
       >
         <div className="bg-black/50 rounded-md p-0.5">
@@ -140,8 +140,8 @@ export default function SchedulePage() {
   // Refs for touch drag — avoid stale closures in global listeners
   const draggingIdRef = useRef<string | null>(null);
   const allRef = useRef<Carousel[]>([]);
+  const justDraggedRef = useRef(false);
   useEffect(() => { allRef.current = all; }, [all]);
-  useEffect(() => { draggingIdRef.current = draggingId; }, [draggingId]);
 
   // Always show today + 7 days, plus any other dates that have carousels
   const days = useMemo(() => {
@@ -210,6 +210,8 @@ export default function SchedulePage() {
       const id = draggingIdRef.current;
       if (!id) return;
       draggingIdRef.current = null;
+      justDraggedRef.current = true;
+      setTimeout(() => { justDraggedRef.current = false; }, 400);
       setDraggingId(null);
       setDropTarget(null);
       const touch = e.changedTouches[0];
@@ -354,8 +356,8 @@ export default function SchedulePage() {
                           dragging={draggingId === c.id}
                           onDragStart={() => setDraggingId(c.id)}
                           onDragEnd={() => { setDraggingId(null); setDropTarget(null); }}
-                          onTouchStart={() => setDraggingId(c.id)}
-                          onClick={() => { setPreview(c); setSlideIdx(0); }}
+                          onTouchStart={() => { draggingIdRef.current = c.id; setDraggingId(c.id); }}
+                          onClick={() => { if (justDraggedRef.current) return; setPreview(c); setSlideIdx(0); }}
                         />
                       ))}
                       {/* Drop placeholder */}
@@ -404,8 +406,8 @@ export default function SchedulePage() {
                   dragging={draggingId === c.id}
                   onDragStart={() => setDraggingId(c.id)}
                   onDragEnd={() => { setDraggingId(null); setDropTarget(null); }}
-                  onTouchStart={() => setDraggingId(c.id)}
-                  onClick={() => { setPreview(c); setSlideIdx(0); }}
+                  onTouchStart={() => { draggingIdRef.current = c.id; setDraggingId(c.id); }}
+                  onClick={() => { if (justDraggedRef.current) return; setPreview(c); setSlideIdx(0); }}
                 />
               ))}
             </div>
