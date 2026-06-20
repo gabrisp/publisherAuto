@@ -31,6 +31,7 @@ import { toast } from "sonner";
 import { useParams, useRouter } from "next/navigation";
 import useSWR from "swr";
 import { parseTags } from "@/lib/ids";
+import { processImageForDownload, variantFilename, newBatchId } from "@/lib/image-download";
 
 /* ── Types ──────────────────────────────────────────────────────────── */
 type TextEl = { id: string; content: string };
@@ -347,11 +348,15 @@ export default function CarouselDetailPage() {
     setSharing(true);
     try {
       const files: File[] = [];
-      for (const slide of carousel.slides) {
-        const url = slide.generatedImagePath ?? slide.imagePath;
-        if (!url) continue;
-        const raw = await fetch(url).then((r) => r.blob());
-        files.push(new File([raw], `slide-${slide.order + 1}.jpg`, { type: "image/jpeg" }));
+      const batchId = newBatchId();
+      const sorted = [...carousel.slides].sort((a, b) => a.order - b.order);
+      for (let v = 1; v <= 4; v++) {
+        for (const slide of sorted) {
+          const url = slide.generatedImagePath ?? slide.imagePath;
+          if (!url) continue;
+          const blob = await processImageForDownload(url);
+          files.push(new File([blob], variantFilename(slide.order, v, batchId), { type: "image/jpeg" }));
+        }
       }
       if (files.length === 0) { toast.error("Sin imágenes"); return; }
 
@@ -877,7 +882,7 @@ export default function CarouselDetailPage() {
                 </Button>
               )}
               <Button size="sm" variant="outline" className="h-7 text-xs" onClick={handleShareSlides} disabled={sharing}>
-                <Share2 className="h-3 w-3 mr-1" />{sharing ? "Cargando…" : "Guardar fotos"}
+                <Share2 className="h-3 w-3 mr-1" />{sharing ? "Generando…" : "Guardar 4 sets"}
               </Button>
             </div>
           </div>
