@@ -31,7 +31,7 @@ import { toast } from "sonner";
 import { useParams, useRouter } from "next/navigation";
 import useSWR from "swr";
 import { parseTags } from "@/lib/ids";
-import { processImageForDownload, variantFilename, newBatchId } from "@/lib/image-download";
+import { processImageForDownload } from "@/lib/image-download";
 
 /* ── Types ──────────────────────────────────────────────────────────── */
 type TextEl = { id: string; content: string };
@@ -347,21 +347,19 @@ export default function CarouselDetailPage() {
     if (!carousel || sharing) return;
     setSharing(true);
     try {
-      const batchId = newBatchId();
       const sorted = [...carousel.slides]
         .sort((a, b) => a.order - b.order)
         .filter((s) => !!(s.generatedImagePath ?? s.imagePath));
       if (!sorted.length) { toast.error("Sin imágenes"); return; }
       // All 4×N canvas ops in parallel — keeps total time ~500ms so iOS gesture doesn't expire
+      const ts = Date.now();
       const files = await Promise.all(
-        [1, 2, 3, 4].flatMap((v) =>
-          sorted.map((slide) => {
-            const url = (slide.generatedImagePath ?? slide.imagePath)!;
-            return processImageForDownload(url).then(
-              (blob) => new File([blob], variantFilename(slide.order, v, batchId), { type: "image/jpeg" })
-            );
-          })
-        )
+        sorted.map((slide) => {
+          const url = (slide.generatedImagePath ?? slide.imagePath)!;
+          return processImageForDownload(url).then(
+            (blob) => new File([blob], `${ts}-s${slide.order + 1}.jpg`, { type: "image/jpeg" })
+          );
+        })
       );
       if (typeof navigator.canShare === "function" && navigator.canShare({ files })) {
         await navigator.share({ files, title: carousel.name });
@@ -883,7 +881,7 @@ export default function CarouselDetailPage() {
                 </Button>
               )}
               <Button size="sm" variant="outline" className="h-7 text-xs" onClick={handleShareSlides} disabled={sharing}>
-                <Share2 className="h-3 w-3 mr-1" />{sharing ? "Generando…" : "Guardar 4 sets"}
+                <Share2 className="h-3 w-3 mr-1" />{sharing ? "Guardando…" : "Guardar fotos"}
               </Button>
             </div>
           </div>
