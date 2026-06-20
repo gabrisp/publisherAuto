@@ -347,28 +347,29 @@ export default function CarouselDetailPage() {
     if (!carousel || sharing) return;
     setSharing(true);
     try {
-      const files: File[] = [];
       const batchId = newBatchId();
-      const sorted = [...carousel.slides].sort((a, b) => a.order - b.order);
-      for (let v = 1; v <= 4; v++) {
-        for (const slide of sorted) {
-          const url = slide.generatedImagePath ?? slide.imagePath;
-          if (!url) continue;
-          const blob = await processImageForDownload(url);
-          files.push(new File([blob], variantFilename(slide.order, v, batchId), { type: "image/jpeg" }));
-        }
-      }
-      if (files.length === 0) { toast.error("Sin imágenes"); return; }
-
+      const sorted = [...carousel.slides]
+        .sort((a, b) => a.order - b.order)
+        .filter((s) => !!(s.generatedImagePath ?? s.imagePath));
+      if (!sorted.length) { toast.error("Sin imágenes"); return; }
+      // All 4×N canvas ops in parallel — keeps total time ~500ms so iOS gesture doesn't expire
+      const files = await Promise.all(
+        [1, 2, 3, 4].flatMap((v) =>
+          sorted.map((slide) => {
+            const url = (slide.generatedImagePath ?? slide.imagePath)!;
+            return processImageForDownload(url).then(
+              (blob) => new File([blob], variantFilename(slide.order, v, batchId), { type: "image/jpeg" })
+            );
+          })
+        )
+      );
       if (typeof navigator.canShare === "function" && navigator.canShare({ files })) {
         await navigator.share({ files, title: carousel.name });
       } else {
         for (const file of files) {
           const href = URL.createObjectURL(file);
           const a = document.createElement("a");
-          a.href = href;
-          a.download = file.name;
-          a.click();
+          a.href = href; a.download = file.name; a.click();
           URL.revokeObjectURL(href);
         }
       }
