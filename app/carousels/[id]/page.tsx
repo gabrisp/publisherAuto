@@ -144,6 +144,14 @@ export default function CarouselDetailPage() {
     }
   }, [carousel?.stats]);
 
+  // Name editing
+  const [editingName, setEditingName] = useState(false);
+  const [nameVal, setNameVal] = useState("");
+  const [savingName, setSavingName] = useState(false);
+  useEffect(() => {
+    if (carousel?.name) setNameVal(carousel.name);
+  }, [carousel?.id]);
+
   // Caption editing
   const [editingCaption, setEditingCaption] = useState(false);
   const [captionTitle, setCaptionTitle] = useState("");
@@ -170,11 +178,64 @@ export default function CarouselDetailPage() {
   const [deleting, setDeleting] = useState(false);
   const [sharing, setSharing] = useState(false);
 
+  // Bulk slide text editing
+  const [bulkTextOpen, setBulkTextOpen] = useState(false);
+  const [bulkText, setBulkText] = useState("");
+  const [savingBulk, setSavingBulk] = useState(false);
+
   // Reorder modal
   const [reorderOpen, setReorderOpen] = useState(false);
   const [reorderSlides, setReorderSlides] = useState<Slide[]>([]);
   const [reorderSaving, setReorderSaving] = useState(false);
   const dragIndex = useRef<number | null>(null);
+
+  async function saveName() {
+    if (!carousel || !nameVal.trim()) return;
+    setSavingName(true);
+    try {
+      await fetch(`/api/carousels/${carousel.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: nameVal.trim() }),
+      });
+      await mutate();
+      setEditingName(false);
+      toast.success("Nombre guardado");
+    } catch {
+      toast.error("Error al guardar nombre");
+    } finally {
+      setSavingName(false);
+    }
+  }
+
+  async function saveBulkTexts() {
+    if (!carousel) return;
+    setSavingBulk(true);
+    try {
+      const parts = bulkText.split(/^SLIDE \d+$/m);
+      parts.shift(); // drop content before first SLIDE marker
+      const sorted = [...carousel.slides].sort((a, b) => a.order - b.order);
+      await Promise.all(
+        parts.slice(0, sorted.length).map((part, i) => {
+          const content = part.trim();
+          const slide = sorted[i];
+          const texts: TextEl[] = content ? [{ id: "t0", content }] : [];
+          return fetch(`/api/carousels/${carousel.id}/slides/${slide.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ texts }),
+          });
+        })
+      );
+      await mutate();
+      setBulkTextOpen(false);
+      toast.success("Textos guardados");
+    } catch {
+      toast.error("Error al guardar");
+    } finally {
+      setSavingBulk(false);
+    }
+  }
 
   async function saveCaption() {
     if (!carousel) return;
@@ -522,7 +583,30 @@ export default function CarouselDetailPage() {
       {/* ── Title + meta (in scroll, above ID block) ── */}
       <div>
         <div className="flex items-center gap-2 flex-wrap">
-          <h1 className="text-xl font-bold leading-tight">{carousel.name}</h1>
+          {editingName ? (
+            <>
+              <input
+                value={nameVal}
+                onChange={(e) => setNameVal(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") saveName(); if (e.key === "Escape") setEditingName(false); }}
+                autoFocus
+                className="text-xl font-bold leading-tight bg-transparent outline-none border-b border-primary min-w-0 flex-1"
+              />
+              <button onClick={saveName} disabled={savingName} className="h-6 px-2 rounded-md text-[10px] font-medium bg-primary text-primary-foreground disabled:opacity-50 flex items-center gap-1">
+                <Check className="h-2.5 w-2.5" />{savingName ? "…" : "OK"}
+              </button>
+              <button onClick={() => setEditingName(false)} className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:bg-muted/60">
+                <X className="h-3 w-3" />
+              </button>
+            </>
+          ) : (
+            <>
+              <h1 className="text-xl font-bold leading-tight">{carousel.name}</h1>
+              <button onClick={() => { setNameVal(carousel.name); setEditingName(true); }} className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/60">
+                <Pencil className="h-2.5 w-2.5" />
+              </button>
+            </>
+          )}
           {!!carousel.publishedAt && (
             <span className="text-xs bg-purple-500/15 text-purple-600 dark:text-purple-400 rounded-full px-2 py-0.5 font-semibold">
               Publicado
@@ -946,15 +1030,56 @@ export default function CarouselDetailPage() {
 
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold">Textos</h2>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs"
-              onClick={copyAllTexts}
-            >
-              <Copy className="h-3 w-3 mr-1" />Copiar todo
-            </Button>
+            <div className="flex items-center gap-1">
+              {bulkTextOpen ? (
+                <>
+                  <button
+                    disabled={savingBulk}
+                    onClick={saveBulkTexts}
+                    className="flex items-center gap-1 h-6 px-2 rounded-md text-[10px] font-medium bg-primary text-primary-foreground disabled:opacity-50"
+                  >
+                    <Check className="h-2.5 w-2.5" />{savingBulk ? "…" : "Guardar todo"}
+                  </button>
+                  <button
+                    onClick={() => setBulkTextOpen(false)}
+                    className="h-6 px-1.5 rounded-md text-[10px] text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={copyAllTexts}>
+                    <Copy className="h-3 w-3 mr-1" />Copiar todo
+                  </Button>
+                  <button
+                    onClick={() => {
+                      const sorted = [...carousel.slides].sort((a, b) => a.order - b.order);
+                      const text = sorted.map((slide, i) => {
+                        const texts = parseTexts(slide.texts);
+                        const content = texts.map((t) => t.content).join("\n");
+                        return `SLIDE ${i + 1}\n${content}`;
+                      }).join("\n\n");
+                      setBulkText(text);
+                      setBulkTextOpen(true);
+                    }}
+                    className="flex items-center gap-1 h-7 px-2 rounded-md text-xs font-medium border hover:bg-muted/50"
+                  >
+                    <Pencil className="h-3 w-3" />Bulk
+                  </button>
+                </>
+              )}
+            </div>
           </div>
+          {bulkTextOpen ? (
+            <textarea
+              value={bulkText}
+              onChange={(e) => setBulkText(e.target.value)}
+              className="w-full bg-muted/30 border rounded-lg p-3 text-sm font-mono resize-none outline-none min-h-[320px] leading-relaxed"
+              placeholder={"SLIDE 1\ntexto...\n\nSLIDE 2\ntexto..."}
+              spellCheck={false}
+            />
+          ) : (
           <div className="space-y-2">
             {carousel.slides.map((slide) => {
               const texts = parseTexts(slide.texts);
@@ -1043,6 +1168,7 @@ export default function CarouselDetailPage() {
               );
             })}
           </div>
+          )}
         </div>
       </div>
 
