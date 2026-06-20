@@ -18,7 +18,7 @@ export async function processImageForDownload(url: string): Promise<Blob> {
         return;
       }
 
-      const brightness = (0.992 + Math.random() * 0.016).toFixed(4);
+      const brightness = (0.82 + Math.random() * 0.06).toFixed(4);
       const saturation = (0.990 + Math.random() * 0.020).toFixed(4);
       ctx.filter = `brightness(${brightness}) saturate(${saturation})`;
       ctx.drawImage(img, 0, 0);
