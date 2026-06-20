@@ -3,7 +3,7 @@
 import { useMemo, useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
-import { Film, ChevronUp, ChevronDown, CheckCircle, ExternalLink, ChevronLeft, ChevronRight, GripVertical } from "lucide-react";
+import { Film, ChevronUp, ChevronDown, CheckCircle, ExternalLink, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
@@ -62,7 +62,7 @@ function CoverCard({
   c: Carousel;
   onDragStart: () => void;
   onDragEnd: () => void;
-  onTouchStart: () => void;
+  onTouchStart: (x: number, y: number) => void;
   onClick: () => void;
   dragging: boolean;
 }) {
@@ -76,18 +76,10 @@ function CoverCard({
       onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; onDragStart(); }}
       onDragEnd={onDragEnd}
       onClick={onClick}
+      onTouchStart={(e) => { const t = e.touches[0]; onTouchStart(t.clientX, t.clientY); }}
       className={`group relative shrink-0 w-[88px] rounded-xl overflow-hidden bg-muted border cursor-grab active:cursor-grabbing transition-opacity select-none ${dragging ? "opacity-30" : "hover:ring-2 hover:ring-primary/50"}`}
       style={{ aspectRatio: "9/16" }}
     >
-      {/* Touch drag handle */}
-      <div
-        className="absolute top-1 left-1 z-10 touch-none"
-        onTouchStart={(e) => { e.preventDefault(); e.stopPropagation(); onTouchStart(); }}
-      >
-        <div className="bg-black/50 rounded-md p-0.5">
-          <GripVertical className="h-3 w-3 text-white/70" />
-        </div>
-      </div>
       {/* Hover title popover */}
       <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-[calc(100%+6px)] z-50 hidden group-hover:flex">
         <div className="bg-popover text-popover-foreground text-[11px] font-medium rounded-lg px-2.5 py-1.5 shadow-lg border whitespace-nowrap max-w-[200px] truncate">
@@ -137,10 +129,11 @@ export default function SchedulePage() {
   const [slideIdx, setSlideIdx] = useState(0);
   const dragCounter = useRef<Record<string, number>>({});
 
-  // Refs for touch drag — avoid stale closures in global listeners
+  // Refs for touch drag
   const draggingIdRef = useRef<string | null>(null);
   const allRef = useRef<Carousel[]>([]);
   const justDraggedRef = useRef(false);
+  const pendingTouchRef = useRef<{ id: string; x: number; y: number } | null>(null);
   useEffect(() => { allRef.current = all; }, [all]);
 
   // Always show today + 7 days, plus any other dates that have carousels
@@ -197,9 +190,21 @@ export default function SchedulePage() {
   // Touch drag support for iPad/mobile (HTML5 DnD doesn't fire on touch)
   useEffect(() => {
     function onTouchMove(e: TouchEvent) {
+      const touch = e.touches[0];
+
+      // Activate drag once finger moves > 8px from touch start
+      if (!draggingIdRef.current && pendingTouchRef.current) {
+        const dx = touch.clientX - pendingTouchRef.current.x;
+        const dy = touch.clientY - pendingTouchRef.current.y;
+        if (Math.sqrt(dx * dx + dy * dy) > 8) {
+          draggingIdRef.current = pendingTouchRef.current.id;
+          setDraggingId(pendingTouchRef.current.id);
+          pendingTouchRef.current = null;
+        }
+      }
+
       if (!draggingIdRef.current) return;
       e.preventDefault();
-      const touch = e.touches[0];
       const el = document.elementFromPoint(touch.clientX, touch.clientY);
       const dayEl = el?.closest("[data-date]") as HTMLElement | null;
       const trayEl = el?.closest("[data-tray]");
@@ -207,6 +212,7 @@ export default function SchedulePage() {
     }
 
     function onTouchEnd(e: TouchEvent) {
+      pendingTouchRef.current = null;
       const id = draggingIdRef.current;
       if (!id) return;
       draggingIdRef.current = null;
@@ -356,7 +362,7 @@ export default function SchedulePage() {
                           dragging={draggingId === c.id}
                           onDragStart={() => setDraggingId(c.id)}
                           onDragEnd={() => { setDraggingId(null); setDropTarget(null); }}
-                          onTouchStart={() => { draggingIdRef.current = c.id; setDraggingId(c.id); }}
+                          onTouchStart={(x, y) => { pendingTouchRef.current = { id: c.id, x, y }; }}
                           onClick={() => { if (justDraggedRef.current) return; setPreview(c); setSlideIdx(0); }}
                         />
                       ))}
@@ -406,7 +412,7 @@ export default function SchedulePage() {
                   dragging={draggingId === c.id}
                   onDragStart={() => setDraggingId(c.id)}
                   onDragEnd={() => { setDraggingId(null); setDropTarget(null); }}
-                  onTouchStart={() => { draggingIdRef.current = c.id; setDraggingId(c.id); }}
+                  onTouchStart={(x, y) => { pendingTouchRef.current = { id: c.id, x, y }; }}
                   onClick={() => { if (justDraggedRef.current) return; setPreview(c); setSlideIdx(0); }}
                 />
               ))}
