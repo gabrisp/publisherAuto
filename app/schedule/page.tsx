@@ -199,6 +199,7 @@ export default function SchedulePage() {
         if (Math.sqrt(dx * dx + dy * dy) > 8) {
           draggingIdRef.current = pendingTouchRef.current.id;
           setDraggingId(pendingTouchRef.current.id);
+          setTrayOpen(true);
           pendingTouchRef.current = null;
         }
       }
@@ -360,7 +361,7 @@ export default function SchedulePage() {
                           key={c.id}
                           c={c}
                           dragging={draggingId === c.id}
-                          onDragStart={() => setDraggingId(c.id)}
+                          onDragStart={() => { setDraggingId(c.id); setTrayOpen(true); }}
                           onDragEnd={() => { setDraggingId(null); setDropTarget(null); }}
                           onTouchStart={(x, y) => { pendingTouchRef.current = { id: c.id, x, y }; }}
                           onClick={() => { if (justDraggedRef.current) return; setPreview(c); setSlideIdx(0); }}
@@ -378,9 +379,19 @@ export default function SchedulePage() {
           </div>
       </div>
 
-      {/* Fixed bottom tray: carousels with account but no date */}
-      {tray.length > 0 && (
-        <div className={`fixed bottom-0 left-56 right-0 z-40 bg-background border-t shadow-xl transition-all duration-200 ${trayOpen ? "h-52" : "h-11"}`}>
+      {/* Fixed bottom tray — always rendered when dragging so there's always a drop target */}
+      {(tray.length > 0 || !!draggingId) && (
+        <div
+          data-tray="true"
+          onDragOver={(e) => { e.preventDefault(); setDropTarget("__tray"); }}
+          onDragLeave={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+              setDropTarget((t) => t === "__tray" ? null : t);
+            }
+          }}
+          onDrop={(e) => { e.preventDefault(); setDropTarget(null); handleDropOnTray(); }}
+          className={`fixed bottom-0 left-56 right-0 z-40 bg-background border-t shadow-xl transition-all duration-200 ${trayOpen ? "h-52" : "h-11"} ${dropTarget === "__tray" ? "ring-2 ring-inset ring-primary/40 bg-primary/5" : ""}`}
+        >
           {/* Tray header */}
           <div className="flex items-center justify-between px-4 h-11 shrink-0">
             <div className="flex items-center gap-2">
@@ -398,11 +409,7 @@ export default function SchedulePage() {
           {/* Tray carousels */}
           {trayOpen && (
             <div
-              data-tray="true"
-              onDragOver={(e) => { e.preventDefault(); setDropTarget("__tray"); }}
-              onDragLeave={() => setDropTarget((t) => t === "__tray" ? null : t)}
-              onDrop={(e) => { e.preventDefault(); setDropTarget(null); handleDropOnTray(); }}
-              className={`flex gap-2 overflow-x-auto px-4 pb-3 h-[calc(100%-44px)] items-start pt-1 transition-colors ${dropTarget === "__tray" ? "bg-primary/5" : ""}`}
+              className="flex gap-2 overflow-x-auto px-4 pb-3 h-[calc(100%-44px)] items-start pt-1"
               style={{ scrollbarWidth: "none" }}
             >
               {tray.map((c) => (
