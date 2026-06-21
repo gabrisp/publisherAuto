@@ -390,7 +390,7 @@ export default function SchedulePage() {
             }
           }}
           onDrop={(e) => { e.preventDefault(); setDropTarget(null); handleDropOnTray(); }}
-          className={`fixed bottom-0 left-56 right-0 z-40 bg-background border-t shadow-xl transition-all duration-200 ${trayOpen ? "h-52" : "h-11"} ${dropTarget === "__tray" ? "ring-2 ring-inset ring-primary/40 bg-primary/5" : ""}`}
+          className={`fixed bottom-0 left-0 md:left-56 right-0 z-40 bg-background border-t shadow-xl transition-all duration-200 ${trayOpen ? "h-52" : "h-11"} ${dropTarget === "__tray" ? "ring-2 ring-inset ring-primary/40 bg-primary/5" : ""}`}
         >
           {/* Tray header */}
           <div className="flex items-center justify-between px-4 h-11 shrink-0">
