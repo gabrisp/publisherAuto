@@ -26,6 +26,7 @@ import {
   Loader2,
   UserCircle,
   Clock,
+  Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useParams, useRouter } from "next/navigation";
@@ -434,6 +435,20 @@ export default function CarouselDetailPage() {
     } finally {
       setReorderSaving(false);
     }
+  }
+
+  async function addSlide() {
+    if (!carousel) return;
+    await fetch(`/api/carousels/${carousel.id}/slides`, { method: "POST" });
+    await mutate();
+    toast.success("Slide añadida");
+  }
+
+  async function deleteSlide(slideId: string) {
+    if (!carousel) return;
+    await fetch(`/api/carousels/${carousel.id}/slides/${slideId}`, { method: "DELETE" });
+    await mutate();
+    toast.success("Slide eliminada");
   }
 
   function copySlideText(slide: Slide) {
@@ -886,7 +901,7 @@ export default function CarouselDetailPage() {
             </div>
           </div>
           <div className="grid grid-cols-4 gap-2">
-            {carousel.slides.map((slide) => {
+            {[...carousel.slides].sort((a, b) => a.order - b.order).map((slide) => {
               const src = slide.generatedImagePath ?? slide.imagePath;
               return (
                 <div
@@ -909,9 +924,25 @@ export default function CarouselDetailPage() {
                   <span className="absolute top-1 left-1 bg-black/60 text-white text-[10px] rounded px-1 font-medium">
                     {slide.order + 1}
                   </span>
+                  <button
+                    className="absolute top-1 right-1 bg-black/60 hover:bg-destructive/80 text-white rounded p-0.5 transition-colors"
+                    onClick={(e) => { e.stopPropagation(); deleteSlide(slide.id); }}
+                    title="Eliminar slide"
+                  >
+                    <X className="h-2.5 w-2.5" />
+                  </button>
                 </div>
               );
             })}
+            {/* Add slide button */}
+            <button
+              onClick={addSlide}
+              className="relative rounded-lg border-2 border-dashed border-muted-foreground/30 hover:border-primary/50 hover:bg-muted/40 transition-colors flex items-center justify-center"
+              style={{ aspectRatio: "9/16" }}
+              title="Añadir slide"
+            >
+              <Plus className="h-5 w-5 text-muted-foreground/50" />
+            </button>
           </div>
         </div>
 
