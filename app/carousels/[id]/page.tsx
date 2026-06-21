@@ -180,6 +180,10 @@ export default function CarouselDetailPage() {
   const [deleting, setDeleting] = useState(false);
   const [sharing, setSharing] = useState(false);
 
+  // Published-at editing
+  const [editingPublishedAt, setEditingPublishedAt] = useState(false);
+  const [publishedAtInput, setPublishedAtInput] = useState("");
+
   // Bulk slide text editing
   const [bulkTextOpen, setBulkTextOpen] = useState(false);
   const [bulkText, setBulkText] = useState("");
@@ -483,6 +487,14 @@ export default function CarouselDetailPage() {
     const publishedAt = carousel.publishedAt ? null : Math.floor(Date.now() / 1000);
     await patchCarousel({ publishedAt });
     toast(publishedAt ? "Marcado como publicado" : "Desmarcado", { duration: 1500 });
+  }
+
+  async function savePublishedAt() {
+    if (!carousel || !publishedAtInput) return;
+    const publishedAt = Math.floor(new Date(publishedAtInput).getTime() / 1000);
+    await patchCarousel({ publishedAt });
+    setEditingPublishedAt(false);
+    toast.success("Fecha de publicación guardada");
   }
 
   async function saveStats() {
@@ -826,17 +838,46 @@ export default function CarouselDetailPage() {
 
             {/* Published */}
             <div className="flex items-center justify-between p-4 rounded-xl border bg-muted/20">
-              <div>
+              <div className="min-w-0 flex-1 mr-3">
                 <p className="text-sm font-semibold">Publicado</p>
-                {carousel.publishedAt && (
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Publicado el {new Date(carousel.publishedAt * 1000).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })}
-                  </p>
+                {carousel.publishedAt && !editingPublishedAt && (
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(carousel.publishedAt * 1000).toLocaleString("es-ES", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    </p>
+                    <button
+                      onClick={() => {
+                        const d = new Date(carousel.publishedAt! * 1000);
+                        const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+                        setPublishedAtInput(local);
+                        setEditingPublishedAt(true);
+                      }}
+                      className="h-4 w-4 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 shrink-0"
+                    >
+                      <Pencil className="h-2.5 w-2.5" />
+                    </button>
+                  </div>
+                )}
+                {editingPublishedAt && (
+                  <div className="flex items-center gap-1 mt-1">
+                    <input
+                      type="datetime-local"
+                      value={publishedAtInput}
+                      onChange={(e) => setPublishedAtInput(e.target.value)}
+                      className="text-xs bg-transparent border rounded px-1.5 py-0.5 outline-none focus:ring-1 focus:ring-ring"
+                    />
+                    <button onClick={savePublishedAt} className="h-5 px-1.5 rounded text-[10px] font-medium bg-primary text-primary-foreground flex items-center gap-0.5">
+                      <Check className="h-2.5 w-2.5" />OK
+                    </button>
+                    <button onClick={() => setEditingPublishedAt(false)} className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:bg-muted/60">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
                 )}
               </div>
               <button
                 onClick={togglePublished}
-                className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                className={`shrink-0 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
                   carousel.publishedAt
                     ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 hover:bg-purple-500/25"
                     : "bg-muted hover:bg-muted/70 text-muted-foreground"
