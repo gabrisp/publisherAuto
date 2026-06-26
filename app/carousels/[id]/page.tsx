@@ -467,18 +467,28 @@ export default function CarouselDetailPage() {
     setUploading(true);
     try {
       const sorted = [...carousel.slides].sort((a, b) => a.order - b.order);
-      // Create extra slides if needed
-      for (let i = sorted.length; i < files.length; i++) {
-        const res = await fetch(`/api/carousels/${carousel.id}/slides`, { method: "POST" });
-        const slide = await res.json();
-        sorted.push(slide);
+      // Empty slots first (no image at all)
+      const emptySlides = sorted.filter((s) => !s.generatedImagePath && !s.imagePath);
+
+      const targets: { slideId: string; file: File }[] = [];
+      for (let i = 0; i < files.length; i++) {
+        if (i < emptySlides.length) {
+          // Fill existing empty slot
+          targets.push({ slideId: emptySlides[i].id, file: files[i] });
+        } else {
+          // No empty slot left — create a new slide
+          const res = await fetch(`/api/carousels/${carousel.id}/slides`, { method: "POST" });
+          const slide = await res.json();
+          targets.push({ slideId: slide.id, file: files[i] });
+        }
       }
-      // Upload each file to its slide in parallel
+
+      // Upload all in parallel
       await Promise.all(
-        files.map((file, i) => {
+        targets.map(({ slideId, file }) => {
           const form = new FormData();
           form.append("file", file);
-          return fetch(`/api/carousels/${carousel.id}/slides/${sorted[i].id}/upload`, { method: "POST", body: form });
+          return fetch(`/api/carousels/${carousel.id}/slides/${slideId}/upload`, { method: "POST", body: form });
         })
       );
       await mutate();
