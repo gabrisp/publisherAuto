@@ -185,6 +185,10 @@ export default function CarouselDetailPage() {
   const [editingPublishedAt, setEditingPublishedAt] = useState(false);
   const [publishedAtInput, setPublishedAtInput] = useState("");
 
+  // Drag-and-drop images onto slide grid
+  const [gridDragOver, setGridDragOver] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
   // Bulk slide text editing
   const [bulkTextOpen, setBulkTextOpen] = useState(false);
   const [bulkText, setBulkText] = useState("");
@@ -450,6 +454,38 @@ export default function CarouselDetailPage() {
     if (!res.ok) { toast.error("Error al subir imagen"); return; }
     await mutate();
     toast.success("Imagen subida");
+  }
+
+  async function handleGridDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setGridDragOver(false);
+    if (!carousel) return;
+    const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith("image/"));
+    if (!files.length) return;
+    setUploading(true);
+    try {
+      const sorted = [...carousel.slides].sort((a, b) => a.order - b.order);
+      // Create extra slides if needed
+      for (let i = sorted.length; i < files.length; i++) {
+        const res = await fetch(`/api/carousels/${carousel.id}/slides`, { method: "POST" });
+        const slide = await res.json();
+        sorted.push(slide);
+      }
+      // Upload each file to its slide in parallel
+      await Promise.all(
+        files.map((file, i) => {
+          const form = new FormData();
+          form.append("file", file);
+          return fetch(`/api/carousels/${carousel.id}/slides/${sorted[i].id}/upload`, { method: "POST", body: form });
+        })
+      );
+      await mutate();
+      toast.success(`${files.length} imagen${files.length > 1 ? "es" : ""} subida${files.length > 1 ? "s" : ""}`);
+    } catch {
+      toast.error("Error al subir imágenes");
+    } finally {
+      setUploading(false);
+    }
   }
 
   async function addSlide() {
@@ -952,7 +988,12 @@ export default function CarouselDetailPage() {
               </Button>
             </div>
           </div>
-          <div className="grid grid-cols-4 gap-2">
+          <div
+            className={`grid grid-cols-4 gap-2 rounded-xl transition-colors ${gridDragOver ? "ring-2 ring-primary/50 bg-primary/5" : ""} ${uploading ? "opacity-60 pointer-events-none" : ""}`}
+            onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; setGridDragOver(true); }}
+            onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setGridDragOver(false); }}
+            onDrop={handleGridDrop}
+          >
             {[...carousel.slides].sort((a, b) => a.order - b.order).map((slide) => {
               const src = slide.generatedImagePath ?? slide.imagePath;
               return (
@@ -1008,6 +1049,18 @@ export default function CarouselDetailPage() {
             >
               <Plus className="h-5 w-5 text-muted-foreground/50" />
             </button>
+            {/* Drop overlay hint */}
+            {gridDragOver && (
+              <div className="col-span-4 flex items-center justify-center rounded-xl border-2 border-dashed border-primary bg-primary/10 py-4">
+                <p className="text-xs font-medium text-primary">Suelta las imágenes aquí</p>
+              </div>
+            )}
+            {uploading && (
+              <div className="col-span-4 flex items-center justify-center gap-2 py-2">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                <p className="text-xs text-muted-foreground">Subiendo…</p>
+              </div>
+            )}
           </div>
         </div>
 
