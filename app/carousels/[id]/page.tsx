@@ -27,6 +27,7 @@ import {
   UserCircle,
   Clock,
   Plus,
+  Upload,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useParams, useRouter } from "next/navigation";
@@ -439,6 +440,16 @@ export default function CarouselDetailPage() {
     } finally {
       setReorderSaving(false);
     }
+  }
+
+  async function uploadSlideImage(slideId: string, file: File) {
+    if (!carousel) return;
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(`/api/carousels/${carousel.id}/slides/${slideId}/upload`, { method: "POST", body: form });
+    if (!res.ok) { toast.error("Error al subir imagen"); return; }
+    await mutate();
+    toast.success("Imagen subida");
   }
 
   async function addSlide() {
@@ -972,6 +983,19 @@ export default function CarouselDetailPage() {
                   >
                     <X className="h-2.5 w-2.5" />
                   </button>
+                  <label
+                    className="absolute bottom-1 right-1 bg-black/60 hover:bg-black/80 text-white rounded p-0.5 transition-colors cursor-pointer"
+                    title="Subir imagen"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Upload className="h-2.5 w-2.5" />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadSlideImage(slide.id, f); e.target.value = ""; }}
+                    />
+                  </label>
                 </div>
               );
             })}

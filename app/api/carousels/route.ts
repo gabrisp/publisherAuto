@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { carousels, carouselSlides, apps, influencers, images, tiktokAccounts, publisherUsers } from "@/db/schema";
 import { and, eq, count, isNull, isNotNull } from "drizzle-orm";
 import { processBatchJson } from "@/lib/carousel-generator";
+import { newId, now, generateShortId } from "@/lib/ids";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -115,10 +116,32 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const { json } = await req.json();
-  if (!json) {
-    return NextResponse.json({ error: "json field required" }, { status: 400 });
+  const body = await req.json();
+
+  // Manual creation: { name, slideCount? }
+  if ("name" in body) {
+    const { name, slideCount = 1 } = body as { name: string; slideCount?: number };
+    if (!name?.trim()) return NextResponse.json({ error: "name required" }, { status: 400 });
+    const id = newId();
+    const ts = now();
+    await db.insert(carousels).values({
+      id, name: name.trim(), shortId: generateShortId(), status: "draft",
+      appId: null, influencerId: null, videoTitle: null, videoDescription: null,
+      videoHashtags: null, jsonSource: null, zipPath: null, createdAt: ts, updatedAt: ts,
+    });
+    const count = Math.max(1, Math.min(Number(slideCount) || 1, 20));
+    for (let i = 0; i < count; i++) {
+      await db.insert(carouselSlides).values({
+        id: newId(), carouselId: id, order: i, imageId: null,
+        generatedImagePath: null, texts: "[]", createdAt: ts, updatedAt: ts,
+      });
+    }
+    return NextResponse.json({ id }, { status: 201 });
   }
+
+  // Batch JSON import
+  const { json } = body;
+  if (!json) return NextResponse.json({ error: "json field required" }, { status: 400 });
   try {
     const ids = await processBatchJson(json);
     return NextResponse.json({ created: ids }, { status: 201 });

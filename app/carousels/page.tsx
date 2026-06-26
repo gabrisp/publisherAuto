@@ -123,6 +123,32 @@ export default function CarouselsPage() {
   const [bulkDateVal, setBulkDateVal] = useState("");
   const [bulkTimeVal, setBulkTimeVal] = useState("");
 
+  /* new carousel modal */
+  const [showNew, setShowNew] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  async function createCarousel() {
+    if (!newName.trim()) return;
+    setCreating(true);
+    try {
+      const res = await fetch("/api/carousels", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newName.trim(), slideCount: 1 }),
+      });
+      if (!res.ok) throw new Error();
+      const { id } = await res.json();
+      setShowNew(false);
+      setNewName("");
+      router.push(`/carousels/${id}`);
+    } catch {
+      toast.error("Error al crear");
+    } finally {
+      setCreating(false);
+    }
+  }
+
   /* import modal */
   const [showImport, setShowImport] = useState(false);
   const [importTab, setImportTab] = useState<"file" | "paste">("file");
@@ -586,12 +612,20 @@ export default function CarouselsPage() {
           <h1 className="text-2xl font-bold">{showArchived ? "Archivados" : "Carousels"}</h1>
         </div>
         {!showArchived && (
-          <button
-            onClick={() => setShowImport(true)}
-            className="h-9 w-9 flex items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm active:scale-95 transition-transform"
-          >
-            <Plus className="h-5 w-5" />
-          </button>
+          <div className="flex gap-1.5">
+            <button
+              onClick={() => { setNewName(""); setShowNew(true); }}
+              className="h-9 px-3 flex items-center gap-1.5 rounded-xl border text-sm font-medium hover:bg-muted/60 transition-colors"
+            >
+              <Plus className="h-4 w-4" />Nuevo
+            </button>
+            <button
+              onClick={() => setShowImport(true)}
+              className="h-9 w-9 flex items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm active:scale-95 transition-transform"
+            >
+              <Plus className="h-5 w-5" />
+            </button>
+          </div>
         )}
       </div>
 
@@ -1086,6 +1120,33 @@ export default function CarouselsPage() {
             <Trash2 className="h-3.5 w-3.5" />
             Eliminar
           </button>
+        </div>
+      )}
+
+      {/* ── New carousel modal ── */}
+      {showNew && (
+        <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4" onClick={() => { if (!creating) setShowNew(false); }}>
+          <div className="bg-background rounded-2xl shadow-xl p-6 w-full max-w-sm space-y-4" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold">Nuevo carousel</h2>
+            <input
+              autoFocus
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") createCarousel(); if (e.key === "Escape") setShowNew(false); }}
+              placeholder="Nombre del carousel…"
+              className="w-full rounded-xl border bg-muted/30 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+            />
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setShowNew(false)} className="px-4 py-2 rounded-xl text-sm border hover:bg-muted/60">Cancelar</button>
+              <button
+                onClick={createCarousel}
+                disabled={creating || !newName.trim()}
+                className="px-4 py-2 rounded-xl text-sm bg-primary text-primary-foreground font-medium disabled:opacity-50"
+              >
+                {creating ? "Creando…" : "Crear"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
