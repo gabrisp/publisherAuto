@@ -460,7 +460,9 @@ export default function CarouselDetailPage() {
     e.preventDefault();
     setGridDragOver(false);
     if (!carousel) return;
-    const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith("image/"));
+    const files = Array.from(e.dataTransfer.files)
+      .filter((f) => f.type.startsWith("image/"))
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
     if (!files.length) return;
     setUploading(true);
     try {
