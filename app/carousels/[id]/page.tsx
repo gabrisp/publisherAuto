@@ -29,9 +29,9 @@ import {
   Plus,
   Upload,
   Play,
-  Sun,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import SlideEditor from "./slide-editor";
 import { toast } from "sonner";
 import { useParams, useRouter } from "next/navigation";
 import useSWR from "swr";
@@ -196,8 +196,8 @@ export default function CarouselDetailPage() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewSlideIdx, setPreviewSlideIdx] = useState(0);
 
-  // Per-slide brightness override (null = random 80–100%)
-  const [brightnessBySlide, setBrightnessBySlide] = useState<Record<string, number>>({});
+  // Slide editor
+  const [editorSlide, setEditorSlide] = useState<Slide | null>(null);
 
   // Bulk slide text editing
   const [bulkTextOpen, setBulkTextOpen] = useState(false);
@@ -376,7 +376,7 @@ export default function CarouselDetailPage() {
       const files = await Promise.all(
         sorted.map((slide) => {
           const url = (slide.generatedImagePath ?? slide.imagePath)!;
-          return processImageForDownload(url, brightnessBySlide[slide.id]).then(
+          return processImageForDownload(url).then(
             (blob) => new File([blob], `${ts}-s${slide.order + 1}.jpg`, { type: "image/jpeg" })
           );
         })
@@ -1021,63 +1021,54 @@ export default function CarouselDetailPage() {
           >
             {[...carousel.slides].sort((a, b) => a.order - b.order).map((slide) => {
               const src = slide.generatedImagePath ?? slide.imagePath;
-              const bVal = brightnessBySlide[slide.id];
               return (
-                <div key={slide.id} className="flex flex-col gap-0.5">
-                  <div
-                    className={`relative rounded-lg overflow-hidden bg-muted border ${isPending ? "cursor-pointer active:opacity-80" : ""}`}
-                    style={{ aspectRatio: "9/16" }}
-                    onClick={isPending ? () => openPicker(slide.id) : undefined}
-                  >
-                    {src ? (
-                      <img
-                        src={src}
-                        alt={`Slide ${slide.order + 1}`}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <ImageIcon className="h-5 w-5 opacity-30" />
-                      </div>
-                    )}
-                    <span className="absolute top-1 left-1 bg-black/60 text-white text-[10px] rounded px-1 font-medium">
-                      {slide.order + 1}
-                    </span>
-                    <button
-                      className="absolute top-1 right-1 bg-black/60 hover:bg-destructive/80 text-white rounded p-0.5 transition-colors"
-                      onClick={(e) => { e.stopPropagation(); deleteSlide(slide.id); }}
-                      title="Eliminar slide"
-                    >
-                      <X className="h-2.5 w-2.5" />
-                    </button>
-                    <label
-                      className="absolute bottom-1 right-1 bg-black/60 hover:bg-black/80 text-white rounded p-0.5 transition-colors cursor-pointer"
-                      title="Subir imagen"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Upload className="h-2.5 w-2.5" />
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadSlideImage(slide.id, f); e.target.value = ""; }}
-                      />
-                    </label>
-                  </div>
-                  {/* Brightness slider — opacity-30 = auto (random), full = fixed */}
-                  <div className="flex items-center gap-0.5 px-0.5">
-                    <Sun className={`h-2 w-2 shrink-0 ${bVal == null ? "opacity-25" : "text-amber-400"}`} />
-                    <input
-                      type="range"
-                      min={50} max={100} step={1}
-                      value={bVal != null ? Math.round(bVal * 100) : 90}
-                      onChange={(e) => { e.stopPropagation(); setBrightnessBySlide((prev) => ({ ...prev, [slide.id]: Number(e.target.value) / 100 })); }}
-                      onDoubleClick={(e) => { e.stopPropagation(); setBrightnessBySlide((prev) => { const n = { ...prev }; delete n[slide.id]; return n; }); }}
-                      onClick={(e) => e.stopPropagation()}
-                      className={`flex-1 h-1 cursor-pointer accent-amber-400 ${bVal == null ? "opacity-25" : ""}`}
-                      title={bVal != null ? `Brillo fijo: ${Math.round(bVal * 100)}% (doble clic → auto)` : "Brillo: auto (80–100%)"}
+                <div
+                  key={slide.id}
+                  className={`relative rounded-lg overflow-hidden bg-muted border ${isPending ? "cursor-pointer active:opacity-80" : ""}`}
+                  style={{ aspectRatio: "9/16" }}
+                  onClick={isPending ? () => openPicker(slide.id) : undefined}
+                >
+                  {src ? (
+                    <img
+                      src={src}
+                      alt={`Slide ${slide.order + 1}`}
+                      className="w-full h-full object-cover"
                     />
-                  </div>
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <ImageIcon className="h-5 w-5 opacity-30" />
+                    </div>
+                  )}
+                  <span className="absolute top-1 left-1 bg-black/60 text-white text-[10px] rounded px-1 font-medium">
+                    {slide.order + 1}
+                  </span>
+                  <button
+                    className="absolute top-1 right-1 bg-black/60 hover:bg-destructive/80 text-white rounded p-0.5 transition-colors"
+                    onClick={(e) => { e.stopPropagation(); deleteSlide(slide.id); }}
+                    title="Eliminar slide"
+                  >
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                  <button
+                    className="absolute bottom-1 left-1 bg-black/60 hover:bg-black/80 text-white rounded p-0.5 transition-colors"
+                    onClick={(e) => { e.stopPropagation(); setEditorSlide(slide); }}
+                    title="Editar slide"
+                  >
+                    <Pencil className="h-2.5 w-2.5" />
+                  </button>
+                  <label
+                    className="absolute bottom-1 right-1 bg-black/60 hover:bg-black/80 text-white rounded p-0.5 transition-colors cursor-pointer"
+                    title="Subir imagen"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Upload className="h-2.5 w-2.5" />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadSlideImage(slide.id, f); e.target.value = ""; }}
+                    />
+                  </label>
                 </div>
               );
             })}
@@ -1483,6 +1474,17 @@ export default function CarouselDetailPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Slide editor ── */}
+      {editorSlide && (
+        <SlideEditor
+          open={!!editorSlide}
+          slide={editorSlide}
+          carouselId={carousel.id}
+          onClose={() => setEditorSlide(null)}
+          onGenerated={() => { mutate(); setEditorSlide(null); toast.success("Slide generada"); }}
+        />
       )}
 
       {/* ── Preview modal ── */}
