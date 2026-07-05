@@ -341,44 +341,54 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
       const baseBlob = await fetch(baseUrl).then(r => r.blob());
       const baseImg = await loadImage(URL.createObjectURL(baseBlob));
 
-      const canvas = document.createElement("canvas");
-      canvas.width = baseImg.naturalWidth || CW;
-      canvas.height = baseImg.naturalHeight || CH;
-      const ctx = canvas.getContext("2d")!;
-      const sx = canvas.width / CW;
-      const sy = canvas.height / CH;
-
-      // Base image with crop applied
       const nw = baseImg.naturalWidth || CW;
       const nh = baseImg.naturalHeight || CH;
-      ctx.drawImage(
-        baseImg,
-        (cropRect.x / CW) * nw, (cropRect.y / CH) * nh,
-        (cropRect.w / CW) * nw, (cropRect.h / CH) * nh,
-        0, 0, canvas.width, canvas.height,
-      );
-      applyPixelAdjustments(ctx, canvas.width, canvas.height, adjust.brightness, adjust.contrast, adjust.saturation);
 
-      // Stickers
+      // Crop in natural pixel space — canvas sized to crop, no stretching
+      const srcX = Math.round((cropRect.x / CW) * nw);
+      const srcY = Math.round((cropRect.y / CH) * nh);
+      const srcW = Math.round((cropRect.w / CW) * nw);
+      const srcH = Math.round((cropRect.h / CH) * nh);
+
+      const canvas = document.createElement("canvas");
+      canvas.width = srcW;
+      canvas.height = srcH;
+      const ctx = canvas.getContext("2d")!;
+
+      // Draw base image 1:1 (crop only, no scale)
+      ctx.drawImage(baseImg, srcX, srcY, srcW, srcH, 0, 0, srcW, srcH);
+      applyPixelAdjustments(ctx, srcW, srcH, adjust.brightness, adjust.contrast, adjust.saturation);
+
+      // Scale from 1080×1920 space to natural pixel space
+      const sx = nw / CW;
+      const sy = nh / CH;
+
+      // Stickers — offset by crop origin
       for (const s of stickerLayers) {
         const sBlob = await fetch(s.src).then(r => r.blob());
         const sImg = await loadImage(URL.createObjectURL(sBlob));
-        ctx.drawImage(sImg, s.x * sx, s.y * sy, s.w * sx, s.h * sy);
+        ctx.drawImage(
+          sImg,
+          (s.x - cropRect.x) * sx,
+          (s.y - cropRect.y) * sy,
+          s.w * sx, s.h * sy,
+        );
       }
 
-      // Text layers
+      // Text layers — offset by crop origin
       for (const t of textLayers) {
         const fs = t.fontSize * sx;
         ctx.save();
         ctx.font = `${t.fontWeight} ${fs}px Arial, sans-serif`;
         ctx.fillStyle = t.color;
         ctx.textAlign = t.align as CanvasTextAlign;
-        const anchorX = t.align === "center" ? (t.x + t.width / 2) * sx
-                      : t.align === "right" ? (t.x + t.width) * sx
-                      : t.x * sx;
+        const tx = (t.x - cropRect.x) * sx;
+        const anchorX = t.align === "center" ? tx + (t.width * sx) / 2
+                      : t.align === "right"  ? tx + t.width * sx
+                      : tx;
         const lines = canvasWrapText(ctx, t.content, t.width * sx);
         lines.forEach((line, i) => {
-          const y = (t.y + (i + 1) * t.fontSize * 1.2) * sy;
+          const y = (t.y - cropRect.y + (i + 1) * t.fontSize * 1.2) * sy;
           if (t.stroke) {
             ctx.strokeStyle = "#000000";
             ctx.lineWidth = 2.5 * sx;
