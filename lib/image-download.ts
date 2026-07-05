@@ -1,4 +1,4 @@
-export async function processImageForDownload(url: string): Promise<Blob> {
+export async function processImageForDownload(url: string, brightnessOverride?: number): Promise<Blob> {
   const res = await fetch(url);
   const sourceBlob = await res.blob();
 
@@ -18,7 +18,7 @@ export async function processImageForDownload(url: string): Promise<Blob> {
         return;
       }
 
-      const brightness = (0.80 + Math.random() * 0.20).toFixed(4);
+      const brightness = (brightnessOverride != null ? brightnessOverride : 0.80 + Math.random() * 0.20).toFixed(4);
       const saturation = (0.990 + Math.random() * 0.020).toFixed(4);
       ctx.filter = `brightness(${brightness}) saturate(${saturation})`;
       ctx.drawImage(img, 0, 0);

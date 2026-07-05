@@ -28,7 +28,10 @@ import {
   Clock,
   Plus,
   Upload,
+  Play,
+  Sun,
 } from "lucide-react";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { useParams, useRouter } from "next/navigation";
 import useSWR from "swr";
@@ -188,6 +191,13 @@ export default function CarouselDetailPage() {
   // Drag-and-drop images onto slide grid
   const [gridDragOver, setGridDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
+
+  // Preview modal
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewSlideIdx, setPreviewSlideIdx] = useState(0);
+
+  // Per-slide brightness override (null = random 80–100%)
+  const [brightnessBySlide, setBrightnessBySlide] = useState<Record<string, number>>({});
 
   // Bulk slide text editing
   const [bulkTextOpen, setBulkTextOpen] = useState(false);
@@ -366,7 +376,7 @@ export default function CarouselDetailPage() {
       const files = await Promise.all(
         sorted.map((slide) => {
           const url = (slide.generatedImagePath ?? slide.imagePath)!;
-          return processImageForDownload(url).then(
+          return processImageForDownload(url, brightnessBySlide[slide.id]).then(
             (blob) => new File([blob], `${ts}-s${slide.order + 1}.jpg`, { type: "image/jpeg" })
           );
         })
@@ -995,6 +1005,9 @@ export default function CarouselDetailPage() {
                   <ArrowUpDown className="h-3 w-3 mr-1" />Ordenar
                 </Button>
               )}
+              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setPreviewSlideIdx(0); setPreviewOpen(true); }}>
+                <Play className="h-3 w-3 mr-1" />Play
+              </Button>
               <Button size="sm" variant="outline" className="h-7 text-xs" onClick={handleShareSlides} disabled={sharing}>
                 <Share2 className="h-3 w-3 mr-1" />{sharing ? "Guardando…" : "Guardar fotos"}
               </Button>
@@ -1008,47 +1021,63 @@ export default function CarouselDetailPage() {
           >
             {[...carousel.slides].sort((a, b) => a.order - b.order).map((slide) => {
               const src = slide.generatedImagePath ?? slide.imagePath;
+              const bVal = brightnessBySlide[slide.id];
               return (
-                <div
-                  key={slide.id}
-                  className={`relative rounded-lg overflow-hidden bg-muted border ${isPending ? "cursor-pointer active:opacity-80" : ""}`}
-                  style={{ aspectRatio: "9/16" }}
-                  onClick={isPending ? () => openPicker(slide.id) : undefined}
-                >
-                  {src ? (
-                    <img
-                      src={src}
-                      alt={`Slide ${slide.order + 1}`}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <ImageIcon className="h-5 w-5 opacity-30" />
-                    </div>
-                  )}
-                  <span className="absolute top-1 left-1 bg-black/60 text-white text-[10px] rounded px-1 font-medium">
-                    {slide.order + 1}
-                  </span>
-                  <button
-                    className="absolute top-1 right-1 bg-black/60 hover:bg-destructive/80 text-white rounded p-0.5 transition-colors"
-                    onClick={(e) => { e.stopPropagation(); deleteSlide(slide.id); }}
-                    title="Eliminar slide"
+                <div key={slide.id} className="flex flex-col gap-0.5">
+                  <div
+                    className={`relative rounded-lg overflow-hidden bg-muted border ${isPending ? "cursor-pointer active:opacity-80" : ""}`}
+                    style={{ aspectRatio: "9/16" }}
+                    onClick={isPending ? () => openPicker(slide.id) : undefined}
                   >
-                    <X className="h-2.5 w-2.5" />
-                  </button>
-                  <label
-                    className="absolute bottom-1 right-1 bg-black/60 hover:bg-black/80 text-white rounded p-0.5 transition-colors cursor-pointer"
-                    title="Subir imagen"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <Upload className="h-2.5 w-2.5" />
+                    {src ? (
+                      <img
+                        src={src}
+                        alt={`Slide ${slide.order + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <ImageIcon className="h-5 w-5 opacity-30" />
+                      </div>
+                    )}
+                    <span className="absolute top-1 left-1 bg-black/60 text-white text-[10px] rounded px-1 font-medium">
+                      {slide.order + 1}
+                    </span>
+                    <button
+                      className="absolute top-1 right-1 bg-black/60 hover:bg-destructive/80 text-white rounded p-0.5 transition-colors"
+                      onClick={(e) => { e.stopPropagation(); deleteSlide(slide.id); }}
+                      title="Eliminar slide"
+                    >
+                      <X className="h-2.5 w-2.5" />
+                    </button>
+                    <label
+                      className="absolute bottom-1 right-1 bg-black/60 hover:bg-black/80 text-white rounded p-0.5 transition-colors cursor-pointer"
+                      title="Subir imagen"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Upload className="h-2.5 w-2.5" />
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadSlideImage(slide.id, f); e.target.value = ""; }}
+                      />
+                    </label>
+                  </div>
+                  {/* Brightness slider — opacity-30 = auto (random), full = fixed */}
+                  <div className="flex items-center gap-0.5 px-0.5">
+                    <Sun className={`h-2 w-2 shrink-0 ${bVal == null ? "opacity-25" : "text-amber-400"}`} />
                     <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadSlideImage(slide.id, f); e.target.value = ""; }}
+                      type="range"
+                      min={50} max={100} step={1}
+                      value={bVal != null ? Math.round(bVal * 100) : 90}
+                      onChange={(e) => { e.stopPropagation(); setBrightnessBySlide((prev) => ({ ...prev, [slide.id]: Number(e.target.value) / 100 })); }}
+                      onDoubleClick={(e) => { e.stopPropagation(); setBrightnessBySlide((prev) => { const n = { ...prev }; delete n[slide.id]; return n; }); }}
+                      onClick={(e) => e.stopPropagation()}
+                      className={`flex-1 h-1 cursor-pointer accent-amber-400 ${bVal == null ? "opacity-25" : ""}`}
+                      title={bVal != null ? `Brillo fijo: ${Math.round(bVal * 100)}% (doble clic → auto)` : "Brillo: auto (80–100%)"}
                     />
-                  </label>
+                  </div>
                 </div>
               );
             })}
@@ -1455,6 +1484,81 @@ export default function CarouselDetailPage() {
           </div>
         </div>
       )}
+
+      {/* ── Preview modal ── */}
+      <Dialog open={previewOpen} onOpenChange={(o) => { if (!o) setPreviewOpen(false); }}>
+        <DialogContent className="sm:max-w-2xl p-0 overflow-hidden" showCloseButton={false}>
+          {(() => {
+            const slides = [...carousel.slides].sort((a, b) => a.order - b.order);
+            const cur = slides[previewSlideIdx];
+            const src = cur?.generatedImagePath ?? cur?.imagePath;
+            const slideText = parseTexts(cur?.texts)
+              .map((item) => item.content?.trim())
+              .filter(Boolean)
+              .join("\n\n");
+            return (
+              <>
+                <DialogTitle className="sr-only">{carousel.name}</DialogTitle>
+                <div className="flex flex-col">
+                  <div className="bg-neutral-950 px-4 py-5 sm:px-6">
+                    <div className="mx-auto w-full max-w-[360px]">
+                      <div className="relative overflow-hidden rounded-[28px] bg-black shadow-2xl" style={{ aspectRatio: "9/16" }}>
+                        {src ? (
+                          <img src={src} alt="" draggable={false} className="absolute inset-0 h-full w-full object-cover pointer-events-none" />
+                        ) : (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <ImageIcon className="h-10 w-10 text-white/20" />
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-black/18" />
+                        <div className="absolute inset-0 flex items-center justify-center p-7 text-center">
+                          {slideText ? (
+                            <div className="max-w-[82%] rounded-2xl bg-black/30 px-4 py-3 backdrop-blur-[2px]">
+                              <p className="whitespace-pre-wrap text-[clamp(18px,2.4vw,26px)] font-semibold leading-tight text-white [text-shadow:0_2px_18px_rgba(0,0,0,0.6)]">
+                                {slideText}
+                              </p>
+                            </div>
+                          ) : null}
+                        </div>
+                        {slides.length > 1 && (
+                          <>
+                            <button
+                              onClick={() => setPreviewSlideIdx((i) => Math.max(0, i - 1))}
+                              disabled={previewSlideIdx === 0}
+                              className="absolute left-3 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/50 p-1.5 text-white disabled:opacity-20"
+                            >
+                              <ChevronLeft className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => setPreviewSlideIdx((i) => Math.min(slides.length - 1, i + 1))}
+                              disabled={previewSlideIdx === slides.length - 1}
+                              className="absolute right-3 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/50 p-1.5 text-white disabled:opacity-20"
+                            >
+                              <ChevronRight className="h-4 w-4" />
+                            </button>
+                            <span className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full bg-black/60 px-2.5 py-1 text-[10px] text-white">
+                              {previewSlideIdx + 1}/{slides.length}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-4 flex items-center justify-between">
+                    <p className="font-semibold text-sm leading-snug truncate mr-4">{carousel.name}</p>
+                    <button
+                      onClick={() => setPreviewOpen(false)}
+                      className="shrink-0 text-xs text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-lg hover:bg-muted/50 transition-colors"
+                    >
+                      Cerrar
+                    </button>
+                  </div>
+                </div>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
 
       {/* ── Reorder modal ── */}
       {reorderOpen && (
