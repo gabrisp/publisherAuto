@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback } from "react"; // editor deploy
 import { X, Type, ImageIcon, Trash2, Loader2, AlignLeft, AlignCenter, AlignRight } from "lucide-react";
 import { toast } from "sonner";
 
