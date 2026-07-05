@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { X, Type, ImageIcon, Trash2, Loader2, AlignLeft, AlignCenter, AlignRight, Crop as CropIcon, Minus, Plus } from "lucide-react";
+import { X, Type, ImageIcon, ImagePlus, Trash2, Loader2, AlignLeft, AlignCenter, AlignRight, Crop as CropIcon, Minus, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 const CW = 1080;
@@ -108,6 +108,7 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
 
   const [generating, setGenerating] = useState(false);
 
+  const localImgRef = useRef<HTMLInputElement>(null);
   const dragging = useRef<{ id: string; kind: "text" | "sticker"; ox: number; oy: number } | null>(null);
   const resizing = useRef<{ id: string; startCX: number; startCY: number; startW: number; startH: number; ar: number } | null>(null);
   const cropDragging = useRef<{ type: "move" | "nw" | "ne" | "sw" | "se"; startCX: number; startCY: number; startCrop: CropRect } | null>(null);
@@ -291,6 +292,22 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
     }
   }
 
+  function handleLocalImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const src = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const ar = img.naturalWidth / img.naturalHeight;
+      const w = 400, h = w / ar;
+      const id = `s${Date.now()}`;
+      setStickerLayers(prev => [...prev, { id, src, x: (CW - w) / 2, y: (CH - h) / 2, w, h }]);
+      setSelectedId(id);
+    };
+    img.src = src;
+    e.target.value = "";
+  }
+
   async function insertSticker(src: string) {
     setPickerOpen(false);
     try {
@@ -432,6 +449,13 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
           <ImageIcon className="h-3.5 w-3.5" /> Sticker
         </button>
         <button
+          onClick={() => { setCropMode(false); setMode("select"); localImgRef.current?.click(); }}
+          className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium border hover:bg-muted/60 transition-colors"
+        >
+          <ImagePlus className="h-3.5 w-3.5" /> Imagen
+        </button>
+        <input ref={localImgRef} type="file" accept="image/*" className="hidden" onChange={handleLocalImage} />
+        <button
           onClick={() => { setCropMode(m => !m); setMode("select"); setSelectedId(null); }}
           className={`flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium border transition-colors ${cropMode ? "bg-primary text-primary-foreground border-primary" : "hover:bg-muted/60"}`}
         >
@@ -471,20 +495,32 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
         <div className="flex-1 min-w-0 flex items-center justify-center bg-neutral-950 p-4 overflow-hidden">
           <div
             ref={canvasRef}
-            className="relative bg-black select-none"
+            className="relative bg-black select-none overflow-hidden"
             style={{ height: "100%", aspectRatio: "9/16", maxHeight: "100%", cursor: cropMode ? "default" : mode === "text" ? "crosshair" : "default" }}
             onMouseDown={handleCanvasPointerDown}
           >
-            {/* Base image */}
-            {baseUrl && (
-              <img
-                src={baseUrl}
-                alt=""
-                draggable={false}
-                className="absolute inset-0 w-full h-full object-cover pointer-events-none"
-                style={{ filter: `brightness(${adjust.brightness}) contrast(${adjust.contrast}) saturate(${adjust.saturation})` }}
-              />
-            )}
+            {/* Base image — shows cropped/zoomed view when not in crop mode */}
+            {baseUrl && (() => {
+              const zoomed = !cropMode && (cropRect.x !== 0 || cropRect.y !== 0 || cropRect.w !== CW || cropRect.h !== CH);
+              return (
+                <img
+                  src={baseUrl}
+                  alt=""
+                  draggable={false}
+                  className="absolute pointer-events-none"
+                  style={zoomed ? {
+                    width: `${(CW / cropRect.w) * 100}%`,
+                    height: `${(CH / cropRect.h) * 100}%`,
+                    left: `${-(cropRect.x / cropRect.w) * 100}%`,
+                    top: `${-(cropRect.y / cropRect.h) * 100}%`,
+                    filter: `brightness(${adjust.brightness}) contrast(${adjust.contrast}) saturate(${adjust.saturation})`,
+                  } : {
+                    inset: 0, width: "100%", height: "100%", objectFit: "cover",
+                    filter: `brightness(${adjust.brightness}) contrast(${adjust.contrast}) saturate(${adjust.saturation})`,
+                  }}
+                />
+              );
+            })()}
             {!baseUrl && (
               <div className="absolute inset-0 flex items-center justify-center">
                 <ImageIcon className="h-12 w-12 text-white/20" />
