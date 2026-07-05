@@ -108,8 +108,10 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
   const [generating, setGenerating] = useState(false);
   const [imgLoading, setImgLoading] = useState(true);
 
+  const [snapGuides, setSnapGuides] = useState<{ v: number[]; h: number[] }>({ v: [], h: [] });
+
   const localImgRef = useRef<HTMLInputElement>(null);
-  const dragging = useRef<{ id: string; kind: "text" | "sticker"; ox: number; oy: number } | null>(null);
+  const dragging = useRef<{ id: string; kind: "text" | "sticker"; ox: number; oy: number; lW: number; lH: number } | null>(null);
   const resizing = useRef<{ id: string; startCX: number; startCY: number; startW: number; startH: number; ar: number } | null>(null);
   const cropDragging = useRef<{ type: "move" | "nw" | "ne" | "sw" | "se"; startCX: number; startCY: number; startCrop: CropRect } | null>(null);
 
@@ -176,8 +178,30 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
       if (dragging.current) {
         const canvasX = (cx - rect.left) / rect.width * W;
         const canvasY = (cy - rect.top) / rect.height * H;
-        const newX = Math.max(0, canvasX - dragging.current.ox);
-        const newY = Math.max(0, canvasY - dragging.current.oy);
+        const rawX = Math.max(0, canvasX - dragging.current.ox);
+        const rawY = Math.max(0, canvasY - dragging.current.oy);
+
+        // Snap to center / thirds / edges
+        const T = W * 0.025;
+        const lW = dragging.current.lW;
+        const lH = dragging.current.lH;
+        let newX = rawX, newY = rawY;
+        const vG: number[] = [], hG: number[] = [];
+
+        for (const sp of [0, W / 3, W / 2, 2 * W / 3, W]) {
+          const pct = (sp / W) * 100;
+          if (Math.abs(rawX + lW / 2 - sp) < T)      { newX = sp - lW / 2; vG.push(pct); break; }
+          else if (Math.abs(rawX - sp) < T)           { newX = sp;          vG.push(pct); break; }
+          else if (Math.abs(rawX + lW - sp) < T)      { newX = sp - lW;     vG.push(pct); break; }
+        }
+        for (const sp of [0, H / 3, H / 2, 2 * H / 3, H]) {
+          const pct = (sp / H) * 100;
+          if (Math.abs(rawY + lH / 2 - sp) < T)      { newY = sp - lH / 2; hG.push(pct); break; }
+          else if (Math.abs(rawY - sp) < T)           { newY = sp;          hG.push(pct); break; }
+          else if (Math.abs(rawY + lH - sp) < T)      { newY = sp - lH;     hG.push(pct); break; }
+        }
+        setSnapGuides({ v: vG, h: hG });
+
         if (dragging.current.kind === "text") {
           setTextLayers(prev => prev.map(l => l.id === dragging.current!.id ? { ...l, x: newX, y: newY } : l));
         } else {
@@ -233,6 +257,7 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
       dragging.current = null;
       resizing.current = null;
       cropDragging.current = null;
+      setSnapGuides({ v: [], h: [] });
     }
 
     window.addEventListener("mousemove", onMove);
@@ -258,7 +283,9 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
     const canvasY = (cy - rect.top) / rect.height * IH;
     const layer = kind === "text" ? textLayers.find(l => l.id === id) : stickerLayers.find(l => l.id === id);
     if (!layer) return;
-    dragging.current = { id, kind, ox: canvasX - layer.x, oy: canvasY - layer.y };
+    const lW = kind === "sticker" ? (layer as StickerLayer).w : (layer as TextLayer).width;
+    const lH = kind === "sticker" ? (layer as StickerLayer).h : (layer as TextLayer).fontSize * 2;
+    dragging.current = { id, kind, ox: canvasX - layer.x, oy: canvasY - layer.y, lW, lH };
     setSelectedId(id);
   }
 
@@ -530,26 +557,32 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
               </div>
             )}
 
-            {/* Base image — shows crop-zoomed view when not in crop mode */}
+            {/* Base image — isolated so CSS filter never bleeds into sibling sticker elements */}
             {baseUrl && !imgLoading && (() => {
               const zoomed = !cropMode && isCropped;
+              const filterVal = `brightness(${adjust.brightness}) contrast(${adjust.contrast}) saturate(${adjust.saturation})`;
               return (
-                <img
-                  src={baseUrl}
-                  alt=""
-                  draggable={false}
+                <div
                   className="absolute pointer-events-none"
-                  style={zoomed ? {
-                    width: `${(IW / cropRect.w) * 100}%`,
-                    height: `${(IH / cropRect.h) * 100}%`,
-                    left: `${-(cropRect.x / cropRect.w) * 100}%`,
-                    top: `${-(cropRect.y / cropRect.h) * 100}%`,
-                    filter: `brightness(${adjust.brightness}) contrast(${adjust.contrast}) saturate(${adjust.saturation})`,
-                  } : {
-                    inset: 0, width: "100%", height: "100%", objectFit: "cover",
-                    filter: `brightness(${adjust.brightness}) contrast(${adjust.contrast}) saturate(${adjust.saturation})`,
+                  style={{
+                    isolation: "isolate",
+                    ...(zoomed ? {
+                      width: `${(IW / cropRect.w) * 100}%`,
+                      height: `${(IH / cropRect.h) * 100}%`,
+                      left: `${-(cropRect.x / cropRect.w) * 100}%`,
+                      top: `${-(cropRect.y / cropRect.h) * 100}%`,
+                    } : { inset: 0, width: "100%", height: "100%" }),
+                    filter: filterVal,
                   }}
-                />
+                >
+                  <img
+                    src={baseUrl}
+                    alt=""
+                    draggable={false}
+                    className="w-full h-full"
+                    style={zoomed ? { objectFit: "cover", width: "100%", height: "100%" } : { objectFit: "cover", width: "100%", height: "100%" }}
+                  />
+                </div>
               );
             })()}
 
@@ -565,7 +598,7 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
               return (
                 <div key={s.id}
                   className={`absolute ${sel ? "outline outline-2 outline-blue-400 outline-offset-0" : ""}`}
-                  style={{ left: `${(s.x / IW) * 100}%`, top: `${(s.y / IH) * 100}%`, width: `${(s.w / IW) * 100}%`, height: `${(s.h / IH) * 100}%`, cursor: "grab" }}
+                  style={{ left: `${(s.x / IW) * 100}%`, top: `${(s.y / IH) * 100}%`, width: `${(s.w / IW) * 100}%`, height: `${(s.h / IH) * 100}%`, cursor: "grab", willChange: "transform", transform: "translateZ(0)" }}
                   onMouseDown={(e) => { if (!cropMode) startDrag(e, s.id, "sticker"); }}
                   onTouchStart={(e) => { if (!cropMode) startDrag(e, s.id, "sticker"); }}
                   onClick={(e) => { e.stopPropagation(); if (!cropMode) setSelectedId(s.id); }}
@@ -625,6 +658,16 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
                 </div>
               );
             })}
+
+            {/* Snap guide lines — shown while dragging */}
+            {snapGuides.v.map(pct => (
+              <div key={pct} className="absolute top-0 bottom-0 pointer-events-none z-20"
+                style={{ left: `${pct}%`, width: 1, background: "rgba(236,72,153,0.85)" }} />
+            ))}
+            {snapGuides.h.map(pct => (
+              <div key={pct} className="absolute left-0 right-0 pointer-events-none z-20"
+                style={{ top: `${pct}%`, height: 1, background: "rgba(236,72,153,0.85)" }} />
+            ))}
 
             {/* Crop overlay */}
             {cropMode && (
