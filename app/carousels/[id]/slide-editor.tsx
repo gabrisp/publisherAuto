@@ -78,7 +78,7 @@ function canvasWrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: n
 
 export default function SlideEditor({ open, slide, carouselId, onClose, onGenerated }: SlideEditorProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(0.3);
+  const [containerWidth, setContainerWidth] = useState(0);
 
   // Image natural dimensions — the canonical coordinate space for everything
   const [IW, setIW] = useState(1080);
@@ -98,6 +98,8 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
 
   const [adjust, setAdjust] = useState<ImageAdjust>({ brightness: 1, contrast: 1, saturation: 1 });
   const [cropRect, setCropRect] = useState<CropRect>({ x: 0, y: 0, w: 1080, h: 1920 });
+  const cropRectRef = useRef<CropRect>({ x: 0, y: 0, w: 1080, h: 1920 });
+  function updateCropRect(r: CropRect) { cropRectRef.current = r; setCropRect(r); }
   const [cropMode, setCropMode] = useState(false);
 
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -118,7 +120,7 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
   // Track container width for font scale
   useEffect(() => {
     if (!canvasRef.current) return;
-    const update = () => { if (canvasRef.current) setScale(canvasRef.current.offsetWidth / IWRef.current); };
+    const update = () => { if (canvasRef.current) setContainerWidth(canvasRef.current.offsetWidth); };
     update();
     const obs = new ResizeObserver(update);
     obs.observe(canvasRef.current);
@@ -144,18 +146,18 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
         const w = img.naturalWidth || 1080;
         const h = img.naturalHeight || 1920;
         setImageDims(w, h);
-        setCropRect({ x: 0, y: 0, w, h });
+        updateCropRect({ x: 0, y: 0, w, h });
         setImgLoading(false);
       };
       img.onerror = () => {
         setImageDims(1080, 1920);
-        setCropRect({ x: 0, y: 0, w: 1080, h: 1920 });
+        updateCropRect({ x: 0, y: 0, w: 1080, h: 1920 });
         setImgLoading(false);
       };
       img.src = url;
     } else {
       setImageDims(1080, 1920);
-      setCropRect({ x: 0, y: 0, w: 1080, h: 1920 });
+      updateCropRect({ x: 0, y: 0, w: 1080, h: 1920 });
       setImgLoading(false);
     }
   }, [open, slide.id]);
@@ -172,30 +174,32 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
       const rect = canvasRef.current?.getBoundingClientRect();
       if (!rect) return;
       const { cx, cy } = getClient(e);
-      const W = IWRef.current;
-      const H = IHRef.current;
+      const IW = IWRef.current;
+      const IH = IHRef.current;
 
       if (dragging.current) {
-        const canvasX = (cx - rect.left) / rect.width * W;
-        const canvasY = (cy - rect.top) / rect.height * H;
-        const rawX = Math.max(0, canvasX - dragging.current.ox);
-        const rawY = Math.max(0, canvasY - dragging.current.oy);
+        // Canvas shows crop region — convert mouse to image space
+        const cr = cropRectRef.current;
+        const mouseImgX = (cx - rect.left) / rect.width * cr.w + cr.x;
+        const mouseImgY = (cy - rect.top) / rect.height * cr.h + cr.y;
+        const rawX = mouseImgX - dragging.current.ox;
+        const rawY = mouseImgY - dragging.current.oy;
 
-        // Snap to center / thirds / edges
-        const T = W * 0.025;
+        // Snap to crop-region thirds / center / edges (all in image space)
+        const T = cr.w * 0.025;
         const lW = dragging.current.lW;
         const lH = dragging.current.lH;
         let newX = rawX, newY = rawY;
         const vG: number[] = [], hG: number[] = [];
 
-        for (const sp of [0, W / 3, W / 2, 2 * W / 3, W]) {
-          const pct = (sp / W) * 100;
+        for (const sp of [cr.x, cr.x + cr.w / 3, cr.x + cr.w / 2, cr.x + 2 * cr.w / 3, cr.x + cr.w]) {
+          const pct = ((sp - cr.x) / cr.w) * 100;
           if (Math.abs(rawX + lW / 2 - sp) < T)      { newX = sp - lW / 2; vG.push(pct); break; }
           else if (Math.abs(rawX - sp) < T)           { newX = sp;          vG.push(pct); break; }
           else if (Math.abs(rawX + lW - sp) < T)      { newX = sp - lW;     vG.push(pct); break; }
         }
-        for (const sp of [0, H / 3, H / 2, 2 * H / 3, H]) {
-          const pct = (sp / H) * 100;
+        for (const sp of [cr.y, cr.y + cr.h / 3, cr.y + cr.h / 2, cr.y + 2 * cr.h / 3, cr.y + cr.h]) {
+          const pct = ((sp - cr.y) / cr.h) * 100;
           if (Math.abs(rawY + lH / 2 - sp) < T)      { newY = sp - lH / 2; hG.push(pct); break; }
           else if (Math.abs(rawY - sp) < T)           { newY = sp;          hG.push(pct); break; }
           else if (Math.abs(rawY + lH - sp) < T)      { newY = sp - lH;     hG.push(pct); break; }
@@ -211,24 +215,26 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
 
       if (resizing.current) {
         if ("touches" in e) (e as TouchEvent).preventDefault();
-        const dx = (cx - resizing.current.startCX) / rect.width * W;
+        const cr = cropRectRef.current;
+        const dx = (cx - resizing.current.startCX) / rect.width * cr.w;
         const newW = Math.max(50, resizing.current.startW + dx);
         const newH = newW / resizing.current.ar;
         setStickerLayers(prev => prev.map(l => l.id === resizing.current!.id ? { ...l, w: newW, h: newH } : l));
       }
 
       if (cropDragging.current) {
+        // Crop mode: canvas shows full image (IW×IH)
         if ("touches" in e) (e as TouchEvent).preventDefault();
-        const dx = (cx - cropDragging.current.startCX) / rect.width * W;
-        const dy = (cy - cropDragging.current.startCY) / rect.height * H;
+        const dx = (cx - cropDragging.current.startCX) / rect.width * IW;
+        const dy = (cy - cropDragging.current.startCY) / rect.height * IH;
         const sc = cropDragging.current.startCrop;
-        const MIN = Math.min(W, H) * 0.05;
+        const MIN = Math.min(IW, IH) * 0.05;
         let { x, y, w, h } = sc;
 
         switch (cropDragging.current.type) {
           case "move":
-            x = Math.max(0, Math.min(W - w, sc.x + dx));
-            y = Math.max(0, Math.min(H - h, sc.y + dy));
+            x = Math.max(0, Math.min(IW - w, sc.x + dx));
+            y = Math.max(0, Math.min(IH - h, sc.y + dy));
             break;
           case "nw": {
             const nx = Math.max(0, Math.min(sc.x + sc.w - MIN, sc.x + dx));
@@ -237,19 +243,19 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
           }
           case "ne": {
             const ny = Math.max(0, Math.min(sc.y + sc.h - MIN, sc.y + dy));
-            w = Math.max(MIN, Math.min(W - sc.x, sc.w + dx));
+            w = Math.max(MIN, Math.min(IW - sc.x, sc.w + dx));
             h = sc.y + sc.h - ny; y = ny; break;
           }
           case "sw": {
             const nx = Math.max(0, Math.min(sc.x + sc.w - MIN, sc.x + dx));
             w = sc.x + sc.w - nx; x = nx;
-            h = Math.max(MIN, Math.min(H - sc.y, sc.h + dy)); break;
+            h = Math.max(MIN, Math.min(IH - sc.y, sc.h + dy)); break;
           }
           case "se":
-            w = Math.max(MIN, Math.min(W - sc.x, sc.w + dx));
-            h = Math.max(MIN, Math.min(H - sc.y, sc.h + dy)); break;
+            w = Math.max(MIN, Math.min(IW - sc.x, sc.w + dx));
+            h = Math.max(MIN, Math.min(IH - sc.y, sc.h + dy)); break;
         }
-        setCropRect({ x, y, w, h });
+        updateCropRect({ x, y, w, h });
       }
     }
 
@@ -279,8 +285,9 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
     if (!rect) return;
     const cx = "touches" in e ? e.touches[0].clientX : e.clientX;
     const cy = "touches" in e ? e.touches[0].clientY : e.clientY;
-    const canvasX = (cx - rect.left) / rect.width * IW;
-    const canvasY = (cy - rect.top) / rect.height * IH;
+    // Canvas shows crop region — convert mouse to image space
+    const canvasX = (cx - rect.left) / rect.width * cropRect.w + cropRect.x;
+    const canvasY = (cy - rect.top) / rect.height * cropRect.h + cropRect.y;
     const layer = kind === "text" ? textLayers.find(l => l.id === id) : stickerLayers.find(l => l.id === id);
     if (!layer) return;
     const lW = kind === "sticker" ? (layer as StickerLayer).w : (layer as TextLayer).width;
@@ -315,8 +322,9 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
     if (mode !== "text") { setSelectedId(null); return; }
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const x = (e.clientX - rect.left) / rect.width * IW;
-    const y = (e.clientY - rect.top) / rect.height * IH;
+    // Canvas shows crop region — convert click to image space
+    const x = (e.clientX - rect.left) / rect.width * cropRect.w + cropRect.x;
+    const y = (e.clientY - rect.top) / rect.height * cropRect.h + cropRect.y;
     const id = `t${Date.now()}`;
     const defFontSize = Math.round(IW * 0.074); // ~80px at 1080w
     const defWidth = Math.round(IW * 0.833);    // ~900px at 1080w
@@ -468,14 +476,22 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
     return true;
   });
 
-  // Crop overlay geometry
+  // Crop overlay geometry (used in crop mode — full image canvas)
   const cropL = (cropRect.x / IW) * 100;
   const cropT = (cropRect.y / IH) * 100;
   const cropR = ((IW - cropRect.x - cropRect.w) / IW) * 100;
   const cropB = ((IH - cropRect.y - cropRect.h) / IH) * 100;
 
-  // Live crop preview (outside crop mode)
   const isCropped = cropRect.x !== 0 || cropRect.y !== 0 || cropRect.w !== IW || cropRect.h !== IH;
+
+  // Viewport: in crop mode show full image, otherwise show crop region
+  const viewW = cropMode ? IW : cropRect.w;
+  const viewH = cropMode ? IH : cropRect.h;
+  const viewX = cropMode ? 0 : cropRect.x;
+  const viewY = cropMode ? 0 : cropRect.y;
+
+  // Scale: canvas pixels per image-space unit
+  const scale = containerWidth > 0 ? containerWidth / viewW : 0.3;
 
   if (!open) return null;
 
@@ -516,7 +532,7 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
         </button>
         {cropMode && (
           <button
-            onClick={() => { setCropRect({ x: 0, y: 0, w: IW, h: IH }); setCropMode(false); }}
+            onClick={() => { updateCropRect({ x: 0, y: 0, w: IW, h: IH }); setCropMode(false); }}
             className="h-8 px-2 rounded-lg text-xs text-muted-foreground hover:bg-muted/60 border transition-colors"
           >Reset</button>
         )}
@@ -546,7 +562,7 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
             style={{
               height: "100%",
               maxHeight: "100%",
-              aspectRatio: `${IW} / ${IH}`,
+              aspectRatio: `${viewW} / ${viewH}`,
               cursor: cropMode ? "default" : mode === "text" ? "crosshair" : "default",
             }}
             onMouseDown={handleCanvasPointerDown}
@@ -557,34 +573,26 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
               </div>
             )}
 
-            {/* Base image — isolated so CSS filter never bleeds into sibling sticker elements */}
-            {baseUrl && !imgLoading && (() => {
-              const zoomed = !cropMode && isCropped;
-              const filterVal = `brightness(${adjust.brightness}) contrast(${adjust.contrast}) saturate(${adjust.saturation})`;
-              return (
-                <div
-                  className="absolute pointer-events-none"
-                  style={{
-                    isolation: "isolate",
-                    ...(zoomed ? {
-                      width: `${(IW / cropRect.w) * 100}%`,
-                      height: `${(IH / cropRect.h) * 100}%`,
-                      left: `${-(cropRect.x / cropRect.w) * 100}%`,
-                      top: `${-(cropRect.y / cropRect.h) * 100}%`,
-                    } : { inset: 0, width: "100%", height: "100%" }),
-                    filter: filterVal,
-                  }}
-                >
-                  <img
-                    src={baseUrl}
-                    alt=""
-                    draggable={false}
-                    className="w-full h-full"
-                    style={zoomed ? { objectFit: "cover", width: "100%", height: "100%" } : { objectFit: "cover", width: "100%", height: "100%" }}
-                  />
-                </div>
-              );
-            })()}
+            {/* Base image — isolated so CSS filter never bleeds into sibling sticker elements.
+                In crop mode: canvas = full image, show as-is.
+                Otherwise: canvas = crop region, scale/offset the full image so only crop is visible. */}
+            {baseUrl && !imgLoading && (
+              <div
+                className="absolute pointer-events-none overflow-hidden"
+                style={{
+                  isolation: "isolate",
+                  ...(cropMode ? { inset: 0, width: "100%", height: "100%" } : {
+                    width: `${(IW / cropRect.w) * 100}%`,
+                    height: `${(IH / cropRect.h) * 100}%`,
+                    left: `${-(cropRect.x / cropRect.w) * 100}%`,
+                    top: `${-(cropRect.y / cropRect.h) * 100}%`,
+                  }),
+                  filter: `brightness(${adjust.brightness}) contrast(${adjust.contrast}) saturate(${adjust.saturation})`,
+                }}
+              >
+                <img src={baseUrl} alt="" draggable={false} className="w-full h-full" style={{ objectFit: "cover" }} />
+              </div>
+            )}
 
             {!baseUrl && !imgLoading && (
               <div className="absolute inset-0 flex items-center justify-center">
@@ -598,7 +606,7 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
               return (
                 <div key={s.id}
                   className={`absolute ${sel ? "outline outline-2 outline-blue-400 outline-offset-0" : ""}`}
-                  style={{ left: `${(s.x / IW) * 100}%`, top: `${(s.y / IH) * 100}%`, width: `${(s.w / IW) * 100}%`, height: `${(s.h / IH) * 100}%`, cursor: "grab", willChange: "transform", transform: "translateZ(0)" }}
+                  style={{ left: `${((s.x - viewX) / viewW) * 100}%`, top: `${((s.y - viewY) / viewH) * 100}%`, width: `${(s.w / viewW) * 100}%`, height: `${(s.h / viewH) * 100}%`, cursor: "grab", willChange: "transform", transform: "translateZ(0)" }}
                   onMouseDown={(e) => { if (!cropMode) startDrag(e, s.id, "sticker"); }}
                   onTouchStart={(e) => { if (!cropMode) startDrag(e, s.id, "sticker"); }}
                   onClick={(e) => { e.stopPropagation(); if (!cropMode) setSelectedId(s.id); }}
@@ -625,9 +633,9 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
                 <div key={t.id}
                   className={`absolute ${sel ? "outline outline-2 outline-blue-400 outline-offset-0" : ""}`}
                   style={{
-                    left: `${(t.x / IW) * 100}%`,
-                    top: `${(t.y / IH) * 100}%`,
-                    width: `${(t.width / IW) * 100}%`,
+                    left: `${((t.x - viewX) / viewW) * 100}%`,
+                    top: `${((t.y - viewY) / viewH) * 100}%`,
+                    width: `${(t.width / viewW) * 100}%`,
                     fontSize: t.fontSize * scale,
                     color: t.color,
                     fontWeight: t.fontWeight,
