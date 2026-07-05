@@ -198,6 +198,7 @@ export default function CarouselDetailPage() {
 
   // Slide editor
   const [editorSlide, setEditorSlide] = useState<Slide | null>(null);
+  const [freshSlideUrls, setFreshSlideUrls] = useState<Record<string, string>>({});
 
   // Bulk slide text editing
   const [bulkTextOpen, setBulkTextOpen] = useState(false);
@@ -1020,7 +1021,7 @@ export default function CarouselDetailPage() {
             onDrop={handleGridDrop}
           >
             {[...carousel.slides].sort((a, b) => a.order - b.order).map((slide) => {
-              const src = slide.generatedImagePath ?? slide.imagePath;
+              const src = freshSlideUrls[slide.id] ?? slide.generatedImagePath ?? slide.imagePath;
               return (
                 <div
                   key={slide.id}
@@ -1483,7 +1484,7 @@ export default function CarouselDetailPage() {
           slide={editorSlide}
           carouselId={carousel.id}
           onClose={() => setEditorSlide(null)}
-          onGenerated={() => { mutate(); setEditorSlide(null); toast.success("Slide generada"); }}
+          onGenerated={(freshUrl) => { setFreshSlideUrls(prev => ({ ...prev, [editorSlide!.id]: freshUrl })); mutate(); setEditorSlide(null); toast.success("Slide generada"); }}
         />
       )}
 

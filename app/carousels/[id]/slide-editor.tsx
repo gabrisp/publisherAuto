@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react"; // editor deploy
-import { X, Type, ImageIcon, Trash2, Loader2, AlignLeft, AlignCenter, AlignRight } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { X, Type, ImageIcon, Trash2, Loader2, AlignLeft, AlignCenter, AlignRight, Crop as CropIcon, Minus, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 const CW = 1080;
 const CH = 1920;
+const MIN_CROP = 120;
 
 type TextLayer = {
   id: string;
@@ -28,6 +29,8 @@ type StickerLayer = {
 
 type ImageAdjust = { brightness: number; contrast: number; saturation: number };
 
+type CropRect = { x: number; y: number; w: number; h: number };
+
 type PickerImage = { id: string; path: string; tag: string; originalName: string; scope: string };
 
 interface SlideEditorProps {
@@ -35,7 +38,7 @@ interface SlideEditorProps {
   slide: { id: string; order: number; generatedImagePath: string | null; imagePath: string | null };
   carouselId: string;
   onClose: () => void;
-  onGenerated: () => void;
+  onGenerated: (freshUrl: string) => void;
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -94,6 +97,8 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
   const [mode, setMode] = useState<"select" | "text">("select");
 
   const [adjust, setAdjust] = useState<ImageAdjust>({ brightness: 1, contrast: 1, saturation: 1 });
+  const [cropRect, setCropRect] = useState<CropRect>({ x: 0, y: 0, w: CW, h: CH });
+  const [cropMode, setCropMode] = useState(false);
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerImages, setPickerImages] = useState<PickerImage[]>([]);
@@ -103,11 +108,10 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
 
   const [generating, setGenerating] = useState(false);
 
-  // Drag / resize refs (avoids stale closure issues)
-  const dragging = useRef<{ id: string; kind: "text" | "sticker"; ox: number; oy: number; startCX: number; startCY: number } | null>(null);
+  const dragging = useRef<{ id: string; kind: "text" | "sticker"; ox: number; oy: number } | null>(null);
   const resizing = useRef<{ id: string; startCX: number; startCY: number; startW: number; startH: number; ar: number } | null>(null);
+  const cropDragging = useRef<{ type: "move" | "nw" | "ne" | "sw" | "se"; startCX: number; startCY: number; startCrop: CropRect } | null>(null);
 
-  // Track container width for scale
   useEffect(() => {
     if (!canvasRef.current) return;
     const update = () => { if (canvasRef.current) setScale(canvasRef.current.offsetWidth / CW); };
@@ -117,7 +121,6 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
     return () => obs.disconnect();
   }, [open]);
 
-  // Reset on open
   useEffect(() => {
     if (open) {
       setTextLayers([]);
@@ -126,10 +129,11 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
       setEditingTextId(null);
       setMode("select");
       setAdjust({ brightness: 1, contrast: 1, saturation: 1 });
+      setCropRect({ x: 0, y: 0, w: CW, h: CH });
+      setCropMode(false);
     }
   }, [open, slide.id]);
 
-  // Global pointer move + up
   useEffect(() => {
     function getClient(e: MouseEvent | TouchEvent) {
       return "touches" in e
@@ -143,7 +147,6 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
       const { cx, cy } = getClient(e);
 
       if (dragging.current) {
-        // Convert pointer to canvas coords
         const canvasX = (cx - rect.left) / rect.width * CW;
         const canvasY = (cy - rect.top) / rect.height * CH;
         const newX = Math.max(0, canvasX - dragging.current.ox);
@@ -162,9 +165,51 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
         const newH = newW / resizing.current.ar;
         setStickerLayers(prev => prev.map(l => l.id === resizing.current!.id ? { ...l, w: newW, h: newH } : l));
       }
+
+      if (cropDragging.current) {
+        if ("touches" in e) (e as TouchEvent).preventDefault();
+        const dx = (cx - cropDragging.current.startCX) / rect.width * CW;
+        const dy = (cy - cropDragging.current.startCY) / rect.height * CH;
+        const sc = cropDragging.current.startCrop;
+        let { x, y, w, h } = sc;
+
+        switch (cropDragging.current.type) {
+          case "move":
+            x = Math.max(0, Math.min(CW - w, sc.x + dx));
+            y = Math.max(0, Math.min(CH - h, sc.y + dy));
+            break;
+          case "nw": {
+            const nx = Math.max(0, Math.min(sc.x + sc.w - MIN_CROP, sc.x + dx));
+            const ny = Math.max(0, Math.min(sc.y + sc.h - MIN_CROP, sc.y + dy));
+            w = sc.x + sc.w - nx; h = sc.y + sc.h - ny; x = nx; y = ny;
+            break;
+          }
+          case "ne": {
+            const ny = Math.max(0, Math.min(sc.y + sc.h - MIN_CROP, sc.y + dy));
+            w = Math.max(MIN_CROP, Math.min(CW - sc.x, sc.w + dx));
+            h = sc.y + sc.h - ny; y = ny;
+            break;
+          }
+          case "sw": {
+            const nx = Math.max(0, Math.min(sc.x + sc.w - MIN_CROP, sc.x + dx));
+            w = sc.x + sc.w - nx; x = nx;
+            h = Math.max(MIN_CROP, Math.min(CH - sc.y, sc.h + dy));
+            break;
+          }
+          case "se":
+            w = Math.max(MIN_CROP, Math.min(CW - sc.x, sc.w + dx));
+            h = Math.max(MIN_CROP, Math.min(CH - sc.y, sc.h + dy));
+            break;
+        }
+        setCropRect({ x, y, w, h });
+      }
     }
 
-    function onUp() { dragging.current = null; resizing.current = null; }
+    function onUp() {
+      dragging.current = null;
+      resizing.current = null;
+      cropDragging.current = null;
+    }
 
     window.addEventListener("mousemove", onMove);
     window.addEventListener("touchmove", onMove, { passive: false });
@@ -189,7 +234,7 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
     const canvasY = (cy - rect.top) / rect.height * CH;
     const layer = kind === "text" ? textLayers.find(l => l.id === id) : stickerLayers.find(l => l.id === id);
     if (!layer) return;
-    dragging.current = { id, kind, ox: canvasX - layer.x, oy: canvasY - layer.y, startCX: cx, startCY: cy };
+    dragging.current = { id, kind, ox: canvasX - layer.x, oy: canvasY - layer.y };
     setSelectedId(id);
   }
 
@@ -203,7 +248,22 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
     resizing.current = { id, startCX: cx, startCY: cy, startW: sticker.w, startH: sticker.h, ar: sticker.w / sticker.h };
   }
 
+  function startCropDrag(e: React.MouseEvent | React.TouchEvent, type: "move" | "nw" | "ne" | "sw" | "se") {
+    e.stopPropagation();
+    e.preventDefault();
+    const cx = "touches" in e ? e.touches[0].clientX : e.clientX;
+    const cy = "touches" in e ? e.touches[0].clientY : e.clientY;
+    cropDragging.current = { type, startCX: cx, startCY: cy, startCrop: { ...cropRect } };
+  }
+
+  function scaleSticker(factor: number) {
+    setStickerLayers(prev => prev.map(l => l.id === selectedId
+      ? { ...l, w: Math.max(50, l.w * factor), h: Math.max(50, l.h * factor) }
+      : l));
+  }
+
   function handleCanvasPointerDown(e: React.MouseEvent) {
+    if (cropMode) return;
     if (mode !== "text") { setSelectedId(null); return; }
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -271,11 +331,18 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
       const sx = canvas.width / CW;
       const sy = canvas.height / CH;
 
-      // Base image + pixel-level adjustments (reliable cross-browser)
-      ctx.drawImage(baseImg, 0, 0);
+      // Base image with crop applied
+      const nw = baseImg.naturalWidth || CW;
+      const nh = baseImg.naturalHeight || CH;
+      ctx.drawImage(
+        baseImg,
+        (cropRect.x / CW) * nw, (cropRect.y / CH) * nh,
+        (cropRect.w / CW) * nw, (cropRect.h / CH) * nh,
+        0, 0, canvas.width, canvas.height,
+      );
       applyPixelAdjustments(ctx, canvas.width, canvas.height, adjust.brightness, adjust.contrast, adjust.saturation);
 
-      // Stickers (no filter)
+      // Stickers
       for (const s of stickerLayers) {
         const sBlob = await fetch(s.src).then(r => r.blob());
         const sImg = await loadImage(URL.createObjectURL(sBlob));
@@ -307,11 +374,14 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
       }
 
       const blob = await new Promise<Blob>(r => canvas.toBlob(b => r(b!), "image/jpeg", 0.95));
+      const freshUrl = URL.createObjectURL(blob);
+
       const form = new FormData();
       form.append("file", new File([blob], "slide.jpg", { type: "image/jpeg" }));
       const res = await fetch(`/api/carousels/${carouselId}/slides/${slide.id}/upload`, { method: "POST", body: form });
       if (!res.ok) throw new Error("upload failed");
-      onGenerated();
+
+      onGenerated(freshUrl);
     } catch {
       toast.error("Error al generar");
     } finally {
@@ -321,6 +391,7 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
 
   const baseUrl = slide.generatedImagePath ?? slide.imagePath;
   const selectedText = textLayers.find(l => l.id === selectedId);
+  const selectedSticker = stickerLayers.find(l => l.id === selectedId);
 
   const displayPicker = pickerImages.filter(img => {
     if (pickerScope !== "all" && img.scope !== pickerScope) return false;
@@ -330,6 +401,12 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
     }
     return true;
   });
+
+  // Crop overlay geometry (percentages)
+  const cropL = (cropRect.x / CW) * 100;
+  const cropT = (cropRect.y / CH) * 100;
+  const cropR = ((CW - cropRect.x - cropRect.w) / CW) * 100;
+  const cropB = ((CH - cropRect.y - cropRect.h) / CH) * 100;
 
   if (!open) return null;
 
@@ -343,18 +420,32 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
         <span className="text-sm font-semibold text-muted-foreground">Slide {slide.order + 1}</span>
         <div className="w-px h-5 bg-border mx-1" />
         <button
-          onClick={() => setMode(m => m === "text" ? "select" : "text")}
+          onClick={() => { setMode(m => m === "text" ? "select" : "text"); setCropMode(false); }}
           className={`flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium border transition-colors ${mode === "text" ? "bg-primary text-primary-foreground border-primary" : "hover:bg-muted/60"}`}
         >
           <Type className="h-3.5 w-3.5" /> Texto
         </button>
         <button
-          onClick={openPicker}
+          onClick={() => { openPicker(); setCropMode(false); setMode("select"); }}
           className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium border hover:bg-muted/60 transition-colors"
         >
           <ImageIcon className="h-3.5 w-3.5" /> Sticker
         </button>
-        {selectedId && (
+        <button
+          onClick={() => { setCropMode(m => !m); setMode("select"); setSelectedId(null); }}
+          className={`flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium border transition-colors ${cropMode ? "bg-primary text-primary-foreground border-primary" : "hover:bg-muted/60"}`}
+        >
+          <CropIcon className="h-3.5 w-3.5" /> Recortar
+        </button>
+        {cropMode && (
+          <button
+            onClick={() => { setCropRect({ x: 0, y: 0, w: CW, h: CH }); setCropMode(false); }}
+            className="h-8 px-2 rounded-lg text-xs text-muted-foreground hover:bg-muted/60 border transition-colors"
+          >
+            Reset
+          </button>
+        )}
+        {selectedId && !cropMode && (
           <button
             onClick={deleteSelected}
             className="h-8 w-8 flex items-center justify-center rounded-lg text-destructive hover:bg-destructive/10 border border-destructive/30 transition-colors"
@@ -381,10 +472,10 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
           <div
             ref={canvasRef}
             className="relative bg-black select-none"
-            style={{ height: "100%", aspectRatio: "9/16", maxHeight: "100%", cursor: mode === "text" ? "crosshair" : "default" }}
+            style={{ height: "100%", aspectRatio: "9/16", maxHeight: "100%", cursor: cropMode ? "default" : mode === "text" ? "crosshair" : "default" }}
             onMouseDown={handleCanvasPointerDown}
           >
-            {/* Base image (CSS filter for live preview) */}
+            {/* Base image */}
             {baseUrl && (
               <img
                 src={baseUrl}
@@ -402,23 +493,27 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
 
             {/* Sticker layers */}
             {stickerLayers.map(s => {
-              const sel = selectedId === s.id;
+              const sel = selectedId === s.id && !cropMode;
               return (
                 <div
                   key={s.id}
                   className={`absolute ${sel ? "outline outline-2 outline-blue-400 outline-offset-0" : ""}`}
                   style={{ left: `${(s.x / CW) * 100}%`, top: `${(s.y / CH) * 100}%`, width: `${(s.w / CW) * 100}%`, height: `${(s.h / CH) * 100}%`, cursor: "grab" }}
-                  onMouseDown={(e) => startDrag(e, s.id, "sticker")}
-                  onTouchStart={(e) => startDrag(e, s.id, "sticker")}
-                  onClick={(e) => { e.stopPropagation(); setSelectedId(s.id); }}
+                  onMouseDown={(e) => { if (!cropMode) startDrag(e, s.id, "sticker"); }}
+                  onTouchStart={(e) => { if (!cropMode) startDrag(e, s.id, "sticker"); }}
+                  onClick={(e) => { e.stopPropagation(); if (!cropMode) setSelectedId(s.id); }}
                 >
                   <img src={s.src} alt="" className="w-full h-full object-contain pointer-events-none select-none" draggable={false} />
                   {sel && (
                     <div
-                      className="absolute bottom-0 right-0 w-4 h-4 bg-blue-400 cursor-se-resize rounded-tl-sm"
+                      className="absolute bottom-0 right-0 w-7 h-7 bg-blue-400 hover:bg-blue-500 cursor-se-resize rounded-tl flex items-center justify-center"
                       onMouseDown={(e) => startResize(e, s.id)}
                       onTouchStart={(e) => startResize(e, s.id)}
-                    />
+                    >
+                      <svg viewBox="0 0 8 8" className="w-3 h-3 text-white fill-current">
+                        <path d="M1 7L7 1M4 7L7 4M7 7V7" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
+                      </svg>
+                    </div>
                   )}
                 </div>
               );
@@ -426,7 +521,7 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
 
             {/* Text layers */}
             {textLayers.map(t => {
-              const sel = selectedId === t.id;
+              const sel = selectedId === t.id && !cropMode;
               const isEditing = editingTextId === t.id;
               return (
                 <div
@@ -446,10 +541,10 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
                     lineHeight: 1.2,
                     textShadow: t.stroke ? "1px 1px 0 #000,-1px 1px 0 #000,1px -1px 0 #000,-1px -1px 0 #000,0 1px 0 #000,0 -1px 0 #000,1px 0 0 #000,-1px 0 0 #000" : "none",
                   }}
-                  onMouseDown={(e) => { if (!isEditing) { e.stopPropagation(); startDrag(e, t.id, "text"); } }}
-                  onTouchStart={(e) => { if (!isEditing) startDrag(e, t.id, "text"); }}
-                  onDoubleClick={(e) => { e.stopPropagation(); setEditingTextId(t.id); setSelectedId(t.id); }}
-                  onClick={(e) => { e.stopPropagation(); setSelectedId(t.id); }}
+                  onMouseDown={(e) => { if (!cropMode && !isEditing) { e.stopPropagation(); startDrag(e, t.id, "text"); } }}
+                  onTouchStart={(e) => { if (!cropMode && !isEditing) startDrag(e, t.id, "text"); }}
+                  onDoubleClick={(e) => { if (!cropMode) { e.stopPropagation(); setEditingTextId(t.id); setSelectedId(t.id); } }}
+                  onClick={(e) => { e.stopPropagation(); if (!cropMode) setSelectedId(t.id); }}
                 >
                   {isEditing ? (
                     <textarea
@@ -468,6 +563,44 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
                 </div>
               );
             })}
+
+            {/* Crop overlay */}
+            {cropMode && (
+              <>
+                {/* Dark strips outside crop rect */}
+                <div className="absolute pointer-events-none bg-black/55" style={{ top: 0, left: 0, right: 0, height: `${cropT}%` }} />
+                <div className="absolute pointer-events-none bg-black/55" style={{ bottom: 0, left: 0, right: 0, height: `${cropB}%` }} />
+                <div className="absolute pointer-events-none bg-black/55" style={{ left: 0, top: `${cropT}%`, bottom: `${cropB}%`, width: `${cropL}%` }} />
+                <div className="absolute pointer-events-none bg-black/55" style={{ right: 0, top: `${cropT}%`, bottom: `${cropB}%`, width: `${cropR}%` }} />
+                {/* Crop rect — movable */}
+                <div
+                  className="absolute border-2 border-white cursor-move"
+                  style={{ left: `${cropL}%`, top: `${cropT}%`, right: `${cropR}%`, bottom: `${cropB}%` }}
+                  onMouseDown={(e) => startCropDrag(e, "move")}
+                  onTouchStart={(e) => startCropDrag(e, "move")}
+                >
+                  {/* Rule of thirds guides */}
+                  <div className="absolute inset-0 pointer-events-none" style={{ borderLeft: "1px solid rgba(255,255,255,0.3)", borderRight: "1px solid rgba(255,255,255,0.3)", left: "33.3%", right: "33.3%" }} />
+                  <div className="absolute inset-0 pointer-events-none" style={{ borderTop: "1px solid rgba(255,255,255,0.3)", borderBottom: "1px solid rgba(255,255,255,0.3)", top: "33.3%", bottom: "33.3%" }} />
+                  {/* Corner handles */}
+                  {(["nw", "ne", "sw", "se"] as const).map(corner => (
+                    <div
+                      key={corner}
+                      className="absolute w-6 h-6 bg-white border-2 border-blue-400 rounded-sm"
+                      style={{
+                        top: corner.startsWith("n") ? -12 : undefined,
+                        bottom: corner.startsWith("s") ? -12 : undefined,
+                        left: corner.endsWith("w") ? -12 : undefined,
+                        right: corner.endsWith("e") ? -12 : undefined,
+                        cursor: `${corner}-resize`,
+                      }}
+                      onMouseDown={(e) => startCropDrag(e, corner)}
+                      onTouchStart={(e) => startCropDrag(e, corner)}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -499,8 +632,27 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
             ))}
           </div>
 
+          {/* Selected sticker props */}
+          {selectedSticker && !cropMode && (
+            <div className="p-4 border-b space-y-3">
+              <h3 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Sticker</h3>
+              <div className="flex items-center gap-2">
+                <button onClick={() => scaleSticker(0.8)}
+                  className="h-8 w-8 flex items-center justify-center rounded-lg border hover:bg-muted/60 transition-colors">
+                  <Minus className="h-3.5 w-3.5" />
+                </button>
+                <span className="text-xs text-muted-foreground flex-1 text-center">{Math.round((selectedSticker.w / CW) * 100)}%</span>
+                <button onClick={() => scaleSticker(1.25)}
+                  className="h-8 w-8 flex items-center justify-center rounded-lg border hover:bg-muted/60 transition-colors">
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <p className="text-[10px] text-muted-foreground">También puedes arrastrar la esquina azul</p>
+            </div>
+          )}
+
           {/* Selected text props */}
-          {selectedText && (
+          {selectedText && !cropMode && (
             <div className="p-4 border-b space-y-3">
               <h3 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Texto</h3>
               <div className="space-y-1">
@@ -556,7 +708,7 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
             )}
             {textLayers.map(l => (
               <div key={l.id} className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${selectedId === l.id ? "border-primary bg-primary/5" : "hover:bg-muted/40"}`}
-                onClick={() => setSelectedId(l.id)}>
+                onClick={() => { setSelectedId(l.id); setCropMode(false); }}>
                 <Type className="h-3 w-3 shrink-0 text-muted-foreground" />
                 <span className="text-xs truncate flex-1">{l.content || "(vacío)"}</span>
                 <button onClick={(e) => { e.stopPropagation(); setTextLayers(p => p.filter(x => x.id !== l.id)); if (selectedId === l.id) setSelectedId(null); }}
@@ -567,7 +719,7 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
             ))}
             {stickerLayers.map((l, i) => (
               <div key={l.id} className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${selectedId === l.id ? "border-primary bg-primary/5" : "hover:bg-muted/40"}`}
-                onClick={() => setSelectedId(l.id)}>
+                onClick={() => { setSelectedId(l.id); setCropMode(false); }}>
                 <img src={l.src} alt="" className="h-8 w-5 object-cover rounded shrink-0" />
                 <span className="text-xs flex-1">Sticker {i + 1}</span>
                 <button onClick={(e) => { e.stopPropagation(); setStickerLayers(p => p.filter(x => x.id !== l.id)); if (selectedId === l.id) setSelectedId(null); }}
@@ -582,7 +734,6 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
 
       {/* ── Mobile bottom controls ── */}
       <div className="md:hidden shrink-0 border-t bg-background">
-        {/* Adjustment sliders */}
         <div className="flex items-center gap-3 px-4 py-2 overflow-x-auto border-b">
           {([
             ["brightness", "Exp", 0.5, 1.5],
@@ -598,8 +749,15 @@ export default function SlideEditor({ open, slide, carouselId, onClose, onGenera
             </div>
           ))}
         </div>
-        {/* Selected text (compact) */}
-        {selectedText && (
+        {selectedSticker && !cropMode && (
+          <div className="flex items-center gap-3 px-4 py-2">
+            <span className="text-xs text-muted-foreground">Tamaño sticker:</span>
+            <button onClick={() => scaleSticker(0.8)} className="h-7 w-7 flex items-center justify-center rounded border text-sm font-bold hover:bg-muted/60"><Minus className="h-3.5 w-3.5" /></button>
+            <span className="text-xs font-mono">{Math.round((selectedSticker.w / CW) * 100)}%</span>
+            <button onClick={() => scaleSticker(1.25)} className="h-7 w-7 flex items-center justify-center rounded border text-sm font-bold hover:bg-muted/60"><Plus className="h-3.5 w-3.5" /></button>
+          </div>
+        )}
+        {selectedText && !cropMode && (
           <div className="flex items-center gap-2 px-4 py-2 overflow-x-auto">
             <input type="color" value={selectedText.color} onChange={(e) => updateText({ color: e.target.value })} className="w-7 h-7 rounded border cursor-pointer p-0 shrink-0" />
             <input type="range" min={20} max={200} step={2} value={selectedText.fontSize}
