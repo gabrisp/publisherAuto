@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   Film, ImageIcon, Music2, LayoutDashboard, LogOut,
   UserCircle, CalendarRange, MoreHorizontal, X,
+  Clapperboard,
 } from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 
@@ -13,6 +14,7 @@ const mainLinks = [
   { href: "/", label: "Inicio", icon: LayoutDashboard, exact: true },
   { href: "/schedule", label: "Timeline", icon: CalendarRange },
   { href: "/carousels", label: "Carousels", icon: Film },
+  { href: "/videos", label: "Videos", icon: Clapperboard },
   { href: "/images", label: "Imágenes", icon: ImageIcon },
 ];
 

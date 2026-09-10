@@ -6,8 +6,10 @@ import {
   images,
   carousels,
   carouselSlides,
+  clips,
   publisherUsers,
   tiktokAccounts,
+  videos,
 } from "@/db/schema";
 import { and, asc, count, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import {
@@ -20,6 +22,7 @@ import {
 import {
   CalendarClock,
   CheckCircle2,
+  Clapperboard,
   Clock3,
   Film,
   ImageIcon,
@@ -200,6 +203,8 @@ export default async function DashboardPage({
     [{ value: activeCount }],
     [{ value: sentCount }],
     [{ value: publishedCount }],
+    [{ value: videoCount }],
+    [{ value: clipCount }],
     recentRows,
   ] = await Promise.all([
     db.select({ value: count() }).from(apps),
@@ -218,6 +223,8 @@ export default async function DashboardPage({
       .select({ value: count() })
       .from(carousels)
       .where(isNotNull(carousels.publishedAt)),
+    db.select({ value: count() }).from(videos),
+    db.select({ value: count() }).from(clips),
     db
       .select({
         id: carousels.id,
@@ -353,6 +360,31 @@ export default async function DashboardPage({
             Imágenes
           </span>
           <span className="font-mono text-sm font-bold tabular-nums">{imageCount}</span>
+        </Link>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Link
+          href="/carousels"
+          className="flex items-center justify-between rounded-lg border bg-card px-4 py-3 transition-colors hover:bg-muted/35"
+        >
+          <span className="flex items-center gap-2 text-sm font-medium">
+            <Film className="h-4 w-4 text-muted-foreground" />
+            Carousels
+          </span>
+          <span className="font-mono text-sm font-bold tabular-nums">{carouselCount}</span>
+        </Link>
+        <Link
+          href="/videos"
+          className="flex items-center justify-between rounded-lg border bg-card px-4 py-3 transition-colors hover:bg-muted/35"
+        >
+          <span className="flex items-center gap-2 text-sm font-medium">
+            <Clapperboard className="h-4 w-4 text-muted-foreground" />
+            Videos · Clips
+          </span>
+          <span className="font-mono text-sm font-bold tabular-nums">
+            {videoCount} · {clipCount}
+          </span>
         </Link>
       </div>
 

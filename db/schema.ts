@@ -89,6 +89,13 @@ export const hashtags = pgTable("hashtags", {
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
 });
 
+export const mobileDevices = pgTable("mobile_devices", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  notes: text("notes"),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+});
+
 export const userTiktokAccounts = pgTable(
   "user_tiktok_accounts",
   {
@@ -119,10 +126,59 @@ export const tiktokAccounts = pgTable("tiktok_accounts", {
   name: text("name").notNull(),
   tiktokUserId: text("tiktok_user_id").unique(),
   avatarUrl: text("avatar_url"),
+  mobileDeviceId: text("mobile_device_id").references(() => mobileDevices.id, { onDelete: "set null" }),
   accessToken: text("access_token"),
   refreshToken: text("refresh_token"),
   tokenExpiresAt: bigint("token_expires_at", { mode: "number" }),
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
+});
+
+export const clips = pgTable("clips", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  filename: text("filename").notNull(),
+  originalName: text("original_name").notNull(),
+  path: text("path").notNull(),
+  mimeType: text("mime_type"),
+  durationMs: integer("duration_ms"),
+  width: integer("width"),
+  height: integer("height"),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+});
+
+export const videos = pgTable("videos", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  status: text("status").notNull().default("draft"),
+  description: text("description"),
+  hashtags: text("hashtags"),
+  audioPath: text("audio_path"),
+  exportPath: text("export_path"),
+  sentToAccountId: text("sent_to_account_id").references(() => tiktokAccounts.id, { onDelete: "set null" }),
+  sentAt: bigint("sent_at", { mode: "number" }),
+  publisherUserId: text("publisher_user_id").references(() => publisherUsers.id, { onDelete: "set null" }),
+  scheduledDate: text("scheduled_date"),
+  scheduledTime: text("scheduled_time"),
+  publishedAt: bigint("published_at", { mode: "number" }),
+  stats: text("stats"),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+  updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
+});
+
+export const videoClips = pgTable("video_clips", {
+  id: text("id").primaryKey(),
+  videoId: text("video_id")
+    .notNull()
+    .references(() => videos.id, { onDelete: "cascade" }),
+  clipId: text("clip_id")
+    .notNull()
+    .references(() => clips.id, { onDelete: "cascade" }),
+  order: integer("order").notNull(),
+  trimStartMs: integer("trim_start_ms").notNull().default(0),
+  trimEndMs: integer("trim_end_ms"),
+  volume: integer("volume").notNull().default(100),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+  updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
 });
 
 export type App = typeof apps.$inferSelect;
@@ -143,6 +199,14 @@ export type Hashtag = typeof hashtags.$inferSelect;
 export type NewHashtag = typeof hashtags.$inferInsert;
 export type PublisherUser = typeof publisherUsers.$inferSelect;
 export type NewPublisherUser = typeof publisherUsers.$inferInsert;
+export type MobileDevice = typeof mobileDevices.$inferSelect;
+export type NewMobileDevice = typeof mobileDevices.$inferInsert;
+export type Clip = typeof clips.$inferSelect;
+export type NewClip = typeof clips.$inferInsert;
+export type Video = typeof videos.$inferSelect;
+export type NewVideo = typeof videos.$inferInsert;
+export type VideoClip = typeof videoClips.$inferSelect;
+export type NewVideoClip = typeof videoClips.$inferInsert;
 
 export type TextElement = {
   id: string;

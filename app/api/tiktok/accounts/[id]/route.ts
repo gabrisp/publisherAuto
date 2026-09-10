@@ -13,6 +13,30 @@ export async function GET(
   return NextResponse.json(account);
 }
 
+export async function PATCH(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const body = (await req.json()) as {
+    name?: string;
+    avatarUrl?: string | null;
+    mobileDeviceId?: string | null;
+  };
+
+  const patch: Record<string, unknown> = {};
+  if ("name" in body && body.name?.trim()) patch.name = body.name.trim();
+  if ("avatarUrl" in body) patch.avatarUrl = body.avatarUrl?.trim() || null;
+  if ("mobileDeviceId" in body) patch.mobileDeviceId = body.mobileDeviceId || null;
+
+  if (Object.keys(patch).length === 0) {
+    return NextResponse.json({ error: "no changes" }, { status: 400 });
+  }
+
+  await db.update(tiktokAccounts).set(patch).where(eq(tiktokAccounts.id, id));
+  return NextResponse.json({ ok: true });
+}
+
 export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
