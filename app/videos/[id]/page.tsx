@@ -314,7 +314,7 @@ export default function VideoDetailPage() {
           <section className="space-y-3 rounded-lg border bg-card p-4">
             <div className="flex items-center gap-2">
               <CalendarClock className="h-4 w-4 text-muted-foreground" />
-              <h2 className="text-sm font-semibold">Timeline</h2>
+              <h2 className="text-sm font-semibold">Clips</h2>
             </div>
             <div className="grid gap-2 rounded-md bg-muted/35 p-2 sm:grid-cols-[minmax(0,1fr)_auto]">
               <select
@@ -329,7 +329,7 @@ export default function VideoDetailPage() {
               </select>
               <Button type="button" variant="outline" size="sm" onClick={appendClip} disabled={!appendClipId}>
                 <Plus className="h-4 w-4" />
-                Append
+                Añadir
               </Button>
             </div>
             <div className="space-y-2">

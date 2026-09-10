@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Download, Loader2, Play, Save } from "lucide-react";
+import { Download, Loader2, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
@@ -27,6 +27,10 @@ function toSeconds(ms: number | null | undefined) {
   return Math.max(0, (ms ?? 0) / 1000);
 }
 
+const OUTPUT_WIDTH = 1080;
+const OUTPUT_HEIGHT = 1920;
+const OUTPUT_FPS = 30;
+
 export function VideoComposerPreview({ videoId, clips, audioPath, onExported }: Props) {
   const mountRef = useRef<HTMLDivElement>(null);
   const compositionRef = useRef<any>(null);
@@ -51,8 +55,8 @@ export function VideoComposerPreview({ videoId, clips, audioPath, onExported }: 
       try {
         const core = await import("@diffusionstudio/core");
         composition = new core.Composition({
-          width: 1080,
-          height: 1920,
+          width: OUTPUT_WIDTH,
+          height: OUTPUT_HEIGHT,
           background: "#000000",
         });
 
@@ -62,8 +66,8 @@ export function VideoComposerPreview({ videoId, clips, audioPath, onExported }: 
           if (!item.clipPath) continue;
           const source = await core.Source.from<any>(item.clipPath);
           const clip = new core.VideoClip(source, {
-            width: 1080,
-            height: 1920,
+            width: OUTPUT_WIDTH,
+            height: OUTPUT_HEIGHT,
             position: "center",
           });
           clip.range = [
@@ -91,7 +95,7 @@ export function VideoComposerPreview({ videoId, clips, audioPath, onExported }: 
         setEngineReady(true);
       } catch (e) {
         console.error(e);
-        setError("Diffusion Studio no pudo montar esta composición.");
+        setError("No se pudo montar el preview.");
       }
     }
 
@@ -115,7 +119,7 @@ export function VideoComposerPreview({ videoId, clips, audioPath, onExported }: 
     try {
       const core = await import("@diffusionstudio/core");
       const result = await new core.Encoder(compositionRef.current, {
-        video: { fps: 30 },
+        video: { fps: OUTPUT_FPS },
       }).render();
       if (result.type !== "success" || !result.data) {
         throw new Error(result.type === "error" ? result.error.message : "export canceled");
@@ -143,7 +147,7 @@ export function VideoComposerPreview({ videoId, clips, audioPath, onExported }: 
         <div ref={mountRef} className="h-full w-full [&_canvas]:h-full [&_canvas]:w-full [&_canvas]:object-contain" />
         {!engineReady && (
           <div className="absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-white/70">
-            {error ?? "Preparando preview con Diffusion Studio…"}
+            {error ?? "Preparando preview…"}
           </div>
         )}
       </div>
@@ -165,10 +169,6 @@ export function VideoComposerPreview({ videoId, clips, audioPath, onExported }: 
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
           Exportar MP4
         </Button>
-        <div className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs text-muted-foreground">
-          <Save className="h-3.5 w-3.5" />
-          Diffusion Studio Core
-        </div>
       </div>
     </div>
   );

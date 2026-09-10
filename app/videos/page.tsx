@@ -197,7 +197,7 @@ export default function VideosPage() {
         <div>
           <h1 className="text-2xl font-bold">Videos</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Clips, edición, exportación y programación de videos.
+            Clips, exportación y programación de videos.
           </p>
         </div>
         <Button type="button" size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
@@ -235,7 +235,7 @@ export default function VideosPage() {
             <div>
               <h2 className="text-sm font-semibold">Crear video</h2>
               <p className="mt-1 text-xs text-muted-foreground">
-                Usa un clip único o junta varios clips seleccionados.
+                Desde un clip único o varios clips seleccionados.
               </p>
             </div>
             <div className="space-y-1.5">
@@ -263,7 +263,7 @@ export default function VideosPage() {
             </div>
             <Button type="submit" className="w-full" disabled={!videoName.trim() || selectedClips.size === 0 || creating}>
               {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              Crear y editar
+              Crear video
             </Button>
           </form>
 

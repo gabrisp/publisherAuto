@@ -91,7 +91,7 @@ export default function InfluencerDetailPage() {
         <div className="space-y-2">
           <p className="text-sm font-semibold">Reference image</p>
           <p className="text-xs text-muted-foreground">
-            Single identity photo — used for reference and future AI features.
+            Single identity photo for this influencer.
           </p>
           <div className="flex gap-2">
             <Button
