@@ -124,11 +124,22 @@ export default function VideosPage() {
       if (meta.width) form.append("width", String(meta.width));
       if (meta.height) form.append("height", String(meta.height));
       const res = await fetch("/api/clips", { method: "POST", body: form });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const raw = await res.text();
+        try {
+          const parsed = JSON.parse(raw) as { error?: string };
+          throw new Error(parsed.error ?? raw);
+        } catch (e) {
+          if (e instanceof SyntaxError) throw new Error(raw);
+          throw e;
+        }
+      }
       toast.success("Clip subido");
       await mutateClips();
-    } catch {
-      toast.error("No se pudo subir el clip");
+    } catch (e) {
+      const rawError = e instanceof Error ? e.message : String(e);
+      console.error(e);
+      toast.error(rawError, { duration: 12000 });
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
