@@ -4,21 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import useSWR from "swr";
-import {
-  Archive,
-  ArchiveRestore,
-  Calendar,
-  CheckCircle2,
-  ChevronDown,
-  ChevronLeft,
-  Clock,
-  Loader2,
-  Music,
-  Plus,
-  Send,
-  UserCircle,
-  X,
-} from "lucide-react";
+import { CalendarClock, CheckCircle2, ChevronLeft, Loader2, Music, Plus, Send } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,9 +25,9 @@ type VideoDetail = {
   scheduledDate: string | null;
   scheduledTime: string | null;
   publishedAt: number | null;
-  archivedAt: number | null;
   stats: string | null;
   sentToAccountName: string | null;
+  mobileDeviceName: string | null;
   publisherUsername: string | null;
   clips: EditorClip[];
 };
@@ -50,6 +36,7 @@ type Account = {
   id: string;
   name: string;
   avatarUrl: string | null;
+  mobileDeviceName: string | null;
 };
 
 type ClipLibraryItem = {
@@ -108,7 +95,6 @@ export default function VideoDetailPage() {
   const [saving, setSaving] = useState(false);
   const [uploadingAudio, setUploadingAudio] = useState(false);
   const [appendClipId, setAppendClipId] = useState("");
-  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!data) return;
@@ -205,10 +191,6 @@ export default function VideoDetailPage() {
     await patchVideo({ publishedAt: data?.publishedAt ? null : Math.floor(Date.now() / 1000) });
   }
 
-  async function toggleArchive() {
-    await patchVideo({ archivedAt: data?.archivedAt ? null : Math.floor(Date.now() / 1000) });
-  }
-
   async function appendClip() {
     if (!appendClipId) return;
     try {
@@ -236,36 +218,6 @@ export default function VideoDetailPage() {
             <p className="text-sm text-muted-foreground">
               {clips.length} clip{clips.length !== 1 ? "s" : ""} · {Math.round(totalDuration / 1000)}s
             </p>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <AccountPill
-                accountName={data.sentToAccountName}
-                accountId={accountId || null}
-                publisherUsername={data.publisherUsername}
-                accounts={accounts}
-                open={accountMenuOpen}
-                onOpenChange={setAccountMenuOpen}
-                onChange={async (nextAccountId) => {
-                  setAccountId(nextAccountId ?? "");
-                  await patchVideo({ sentToAccountId: nextAccountId });
-                  setAccountMenuOpen(false);
-                  toast.success(nextAccountId ? "Cuenta asociada" : "Cuenta quitada");
-                }}
-              />
-              <DatePill
-                date={scheduledDate || null}
-                onChange={async (date) => {
-                  setScheduledDate(date ?? "");
-                  await patchVideo({ scheduledDate: date });
-                }}
-              />
-              <TimePill
-                time={scheduledTime || null}
-                onChange={async (time) => {
-                  setScheduledTime(time ?? "");
-                  await patchVideo({ scheduledTime: time });
-                }}
-              />
-            </div>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -276,10 +228,6 @@ export default function VideoDetailPage() {
           <Button type="button" variant="outline" size="sm" onClick={markPublished}>
             <CheckCircle2 className="h-4 w-4" />
             {data.publishedAt ? "Despublicar" : "Publicado"}
-          </Button>
-          <Button type="button" variant="outline" size="sm" onClick={toggleArchive}>
-            {data.archivedAt ? <ArchiveRestore className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
-            {data.archivedAt ? "Desarchivar" : "Archivar"}
           </Button>
           <Button type="button" size="sm" onClick={save} disabled={saving || !name.trim()}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
@@ -323,6 +271,24 @@ export default function VideoDetailPage() {
             <div className="space-y-1.5 md:col-span-2">
               <Label htmlFor="hashtags">Hashtags</Label>
               <Input id="hashtags" value={hashtags} onChange={(e) => setHashtags(e.target.value)} placeholder="#gymtok #viral" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="account">Cuenta</Label>
+              <select id="account" value={accountId} onChange={(e) => setAccountId(e.target.value)} className="h-8 w-full rounded-lg border bg-background px-2 text-sm">
+                <option value="">Sin cuenta</option>
+                {accounts.map((account) => (
+                  <option key={account.id} value={account.id}>
+                    @{account.name}{account.mobileDeviceName ? ` · ${account.mobileDeviceName}` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="date">Programación</Label>
+              <div className="grid grid-cols-[1fr_96px] gap-2">
+                <Input id="date" type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} />
+                <Input type="time" value={scheduledTime} onChange={(e) => setScheduledTime(e.target.value)} />
+              </div>
             </div>
             <button
               type="button"
@@ -418,95 +384,6 @@ function NumberField({
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
         className="h-8"
-      />
-    </label>
-  );
-}
-
-function AccountPill({
-  accountName,
-  accountId,
-  publisherUsername,
-  accounts,
-  open,
-  onOpenChange,
-  onChange,
-}: {
-  accountName: string | null;
-  accountId: string | null;
-  publisherUsername: string | null;
-  accounts: Account[];
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onChange: (accountId: string | null) => void;
-}) {
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => onOpenChange(!open)}
-        className="inline-flex items-center gap-1.5 rounded-full border bg-muted/30 px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
-      >
-        <UserCircle className="h-3 w-3" />
-        {accountName ? `@${accountName}` : "Cuenta"}
-        {publisherUsername && <span className="text-[10px] opacity-60">· {publisherUsername}</span>}
-        <ChevronDown className="h-3 w-3 opacity-60" />
-      </button>
-      {open && (
-        <div className="absolute left-0 top-full z-50 mt-1.5 min-w-44 overflow-hidden rounded-lg border bg-background py-1 shadow-xl">
-          <button
-            type="button"
-            className="flex w-full items-center gap-2 px-3 py-2 text-xs hover:bg-muted/60"
-            onClick={() => onChange(null)}
-          >
-            <X className="h-3 w-3" />
-            Sin cuenta
-          </button>
-          {accounts.length > 0 && <div className="my-1 border-t" />}
-          {accounts.map((account) => (
-            <button
-              key={account.id}
-              type="button"
-              className={`flex w-full items-center gap-2 px-3 py-2 text-xs hover:bg-muted/60 ${accountId === account.id ? "font-semibold text-primary" : ""}`}
-              onClick={() => onChange(account.id)}
-            >
-              {account.avatarUrl
-                ? <img src={account.avatarUrl} alt={account.name} className="h-4 w-4 rounded-full object-cover" />
-                : <UserCircle className="h-3 w-3" />}
-              @{account.name}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function DatePill({ date, onChange }: { date: string | null; onChange: (date: string | null) => void }) {
-  return (
-    <label className="relative inline-flex cursor-pointer items-center gap-1.5 rounded-full border bg-muted/30 px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground">
-      <Calendar className="h-3 w-3" />
-      {date ? new Date(`${date}T00:00:00`).toLocaleDateString("es-ES", { day: "numeric", month: "short" }) : "Día"}
-      <input
-        type="date"
-        value={date ?? ""}
-        onChange={(e) => onChange(e.target.value || null)}
-        className="absolute inset-0 cursor-pointer opacity-0"
-      />
-    </label>
-  );
-}
-
-function TimePill({ time, onChange }: { time: string | null; onChange: (time: string | null) => void }) {
-  return (
-    <label className="relative inline-flex cursor-pointer items-center gap-1.5 rounded-full border bg-muted/30 px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground">
-      <Clock className="h-3 w-3" />
-      {time ?? "Hora"}
-      <input
-        type="time"
-        value={time ?? ""}
-        onChange={(e) => onChange(e.target.value || null)}
-        className="absolute inset-0 cursor-pointer opacity-0"
       />
     </label>
   );

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import {
   clips,
+  mobileDevices,
   publisherUsers,
   tiktokAccounts,
   userTiktokAccounts,
@@ -27,15 +28,16 @@ export async function GET() {
       scheduledDate: videos.scheduledDate,
       scheduledTime: videos.scheduledTime,
       publishedAt: videos.publishedAt,
-      archivedAt: videos.archivedAt,
       stats: videos.stats,
       createdAt: videos.createdAt,
       updatedAt: videos.updatedAt,
       sentToAccountName: tiktokAccounts.name,
+      mobileDeviceName: mobileDevices.name,
       publisherUsername: publisherUsers.username,
     })
     .from(videos)
     .leftJoin(tiktokAccounts, eq(videos.sentToAccountId, tiktokAccounts.id))
+    .leftJoin(mobileDevices, eq(tiktokAccounts.mobileDeviceId, mobileDevices.id))
     .leftJoin(publisherUsers, eq(videos.publisherUserId, publisherUsers.id))
     .orderBy(desc(videos.createdAt));
 

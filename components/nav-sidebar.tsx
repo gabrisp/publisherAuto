@@ -28,7 +28,6 @@ const links = [
   { href: "/schedule", label: "Programación", icon: CalendarRange },
   { href: "/carousels", label: "Carousels", icon: Film },
   { href: "/videos", label: "Videos", icon: Clapperboard },
-  { href: "/clips", label: "Clips", icon: Clapperboard },
   { href: "/users", label: "Usuarios", icon: UserCircle },
   { href: "/tiktok", label: "TikTok", icon: Music2 },
   { href: "/stats", label: "Stats", icon: BarChart2 },

@@ -71,17 +71,6 @@ function formatSchedule(date: string | null, time: string | null) {
   return time ? `${formatted} · ${time}` : formatted;
 }
 
-function todayStr() {
-  const parts = new Intl.DateTimeFormat("es-ES", {
-    timeZone: "Europe/Madrid",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-  const value = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
-  return `${value("year")}-${value("month")}-${value("day")}`;
-}
-
 function getCarouselState(c: DashboardCarousel) {
   if (c.archivedAt) {
     return {
@@ -299,13 +288,9 @@ export default async function DashboardPage({
     : allCarousels;
 
   const activeCarousels = filtered.filter((c) => !c.archivedAt && !c.publishedAt);
-  const today = todayStr();
-  const todayCarousels = activeCarousels.filter((c) => c.scheduledDate === today);
-  const recentActiveCarousels = activeCarousels.filter((c) => c.scheduledDate !== today);
   const completedCarousels = filtered.filter((c) => c.archivedAt || c.publishedAt);
 
   const stats = [
-    { label: "Hoy", value: todayCarousels.length, icon: CalendarClock, href: "/hoy" },
     { label: "Activos", value: activeCount, icon: Clock3, href: "/carousels" },
     { label: "Drafts", value: sentCount, icon: Send, href: "/carousels" },
     { label: "Publicados", value: publishedCount, icon: CheckCircle2, href: "/carousels" },
@@ -327,7 +312,7 @@ export default async function DashboardPage({
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {stats.map((s) => (
           <Link key={s.label} href={s.href}>
             <Card className="hover:bg-muted/50 transition-colors cursor-pointer">
@@ -378,7 +363,7 @@ export default async function DashboardPage({
         </Link>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2">
         <Link
           href="/carousels"
           className="flex items-center justify-between rounded-lg border bg-card px-4 py-3 transition-colors hover:bg-muted/35"
@@ -395,55 +380,13 @@ export default async function DashboardPage({
         >
           <span className="flex items-center gap-2 text-sm font-medium">
             <Clapperboard className="h-4 w-4 text-muted-foreground" />
-            Videos
+            Videos · Clips
           </span>
-          <span className="font-mono text-sm font-bold tabular-nums">{videoCount}</span>
-        </Link>
-        <Link
-          href="/clips"
-          className="flex items-center justify-between rounded-lg border bg-card px-4 py-3 transition-colors hover:bg-muted/35"
-        >
-          <span className="flex items-center gap-2 text-sm font-medium">
-            <Clapperboard className="h-4 w-4 text-muted-foreground" />
-            Clips
+          <span className="font-mono text-sm font-bold tabular-nums">
+            {videoCount} · {clipCount}
           </span>
-          <span className="font-mono text-sm font-bold tabular-nums">{clipCount}</span>
         </Link>
       </div>
-
-      <Card className="overflow-hidden">
-        <CardHeader>
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div>
-              <CardTitle>Hoy</CardTitle>
-              <CardDescription>
-                {q
-                  ? `${todayCarousels.length} para hoy filtrado por "${q}"`
-                  : `${todayCarousels.length} carousel${todayCarousels.length !== 1 ? "s" : ""} programado${todayCarousels.length !== 1 ? "s" : ""} para hoy`}
-              </CardDescription>
-            </div>
-            <Link
-              href="/hoy"
-              className="rounded-md border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted"
-            >
-              Abrir Hoy
-            </Link>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {todayCarousels.length === 0 ? (
-            <p className="text-sm text-muted-foreground px-6 py-8 text-center">
-              {q ? <>Sin resultados para hoy con &quot;{q}&quot;.</> : <>Nada programado para hoy.</>}
-            </p>
-          ) : (
-            <div className="divide-y">
-              {todayCarousels.slice(0, 12).map((c) => (
-                <CarouselRow key={c.id} carousel={c} />
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
       <Card className="overflow-hidden">
         <CardHeader>
@@ -452,8 +395,8 @@ export default async function DashboardPage({
               <CardTitle>Activos recientes</CardTitle>
               <CardDescription>
                 {q
-                  ? `${recentActiveCarousels.length} activo${recentActiveCarousels.length !== 1 ? "s" : ""} reciente${recentActiveCarousels.length !== 1 ? "s" : ""} para "${q}"`
-                  : `${recentActiveCarousels.length} activos recientes sin contar hoy`}
+                  ? `${activeCarousels.length} activo${activeCarousels.length !== 1 ? "s" : ""} para "${q}"`
+                  : `${activeCarousels.length} de los últimos ${allCarousels.length} carousels`}
               </CardDescription>
             </div>
             <Link
@@ -465,7 +408,7 @@ export default async function DashboardPage({
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {recentActiveCarousels.length === 0 ? (
+          {activeCarousels.length === 0 ? (
             <p className="text-sm text-muted-foreground px-6 py-8 text-center">
               {q ? (
                 <>Sin resultados para &quot;{q}&quot;.</>
@@ -475,7 +418,7 @@ export default async function DashboardPage({
             </p>
           ) : (
             <div className="divide-y">
-              {recentActiveCarousels.slice(0, 24).map((c) => (
+              {activeCarousels.slice(0, 24).map((c) => (
                 <CarouselRow key={c.id} carousel={c} />
               ))}
             </div>

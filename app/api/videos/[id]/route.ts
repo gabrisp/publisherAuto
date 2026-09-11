@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import {
   clips,
+  mobileDevices,
   publisherUsers,
   tiktokAccounts,
   userTiktokAccounts,
@@ -31,15 +32,16 @@ export async function GET(
       scheduledDate: videos.scheduledDate,
       scheduledTime: videos.scheduledTime,
       publishedAt: videos.publishedAt,
-      archivedAt: videos.archivedAt,
       stats: videos.stats,
       createdAt: videos.createdAt,
       updatedAt: videos.updatedAt,
       sentToAccountName: tiktokAccounts.name,
+      mobileDeviceName: mobileDevices.name,
       publisherUsername: publisherUsers.username,
     })
     .from(videos)
     .leftJoin(tiktokAccounts, eq(videos.sentToAccountId, tiktokAccounts.id))
+    .leftJoin(mobileDevices, eq(tiktokAccounts.mobileDeviceId, mobileDevices.id))
     .leftJoin(publisherUsers, eq(videos.publisherUserId, publisherUsers.id))
     .where(eq(videos.id, id));
 
@@ -85,7 +87,6 @@ export async function PATCH(
   if ("scheduledTime" in body) patch.scheduledTime = body.scheduledTime ?? null;
   if ("sentAt" in body) patch.sentAt = body.sentAt ?? null;
   if ("publishedAt" in body) patch.publishedAt = body.publishedAt ?? null;
-  if ("archivedAt" in body) patch.archivedAt = body.archivedAt ?? null;
   if ("stats" in body) patch.stats = body.stats ? JSON.stringify(body.stats) : null;
   if ("publisherUserId" in body) patch.publisherUserId = body.publisherUserId ?? null;
 

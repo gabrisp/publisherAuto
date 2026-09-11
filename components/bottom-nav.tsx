@@ -15,11 +15,10 @@ const mainLinks = [
   { href: "/schedule", label: "Timeline", icon: CalendarRange },
   { href: "/carousels", label: "Carousels", icon: Film },
   { href: "/videos", label: "Videos", icon: Clapperboard },
-  { href: "/clips", label: "Clips", icon: Clapperboard },
+  { href: "/images", label: "Imágenes", icon: ImageIcon },
 ];
 
 const extraLinks = [
-  { href: "/images", label: "Imágenes", icon: ImageIcon },
   { href: "/users", label: "Usuarios", icon: UserCircle },
   { href: "/tiktok", label: "TikTok", icon: Music2 },
 ];

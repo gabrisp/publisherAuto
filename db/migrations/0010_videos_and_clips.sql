@@ -1,3 +1,13 @@
+CREATE TABLE IF NOT EXISTS mobile_devices (
+  id text PRIMARY KEY,
+  name text NOT NULL,
+  notes text,
+  created_at bigint NOT NULL
+);
+
+ALTER TABLE tiktok_accounts
+  ADD COLUMN IF NOT EXISTS mobile_device_id text REFERENCES mobile_devices(id) ON DELETE SET NULL;
+
 CREATE TABLE IF NOT EXISTS clips (
   id text PRIMARY KEY,
   name text NOT NULL,
@@ -25,14 +35,10 @@ CREATE TABLE IF NOT EXISTS videos (
   scheduled_date text,
   scheduled_time text,
   published_at bigint,
-  archived_at bigint,
   stats text,
   created_at bigint NOT NULL,
   updated_at bigint NOT NULL
 );
-
-ALTER TABLE videos
-  ADD COLUMN IF NOT EXISTS archived_at bigint;
 
 CREATE TABLE IF NOT EXISTS video_clips (
   id text PRIMARY KEY,
