@@ -376,7 +376,7 @@ export default async function DashboardPage({
         </Link>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-3">
         <Link
           href="/carousels"
           className="flex items-center justify-between rounded-lg border bg-card px-4 py-3 transition-colors hover:bg-muted/35"
@@ -393,11 +393,19 @@ export default async function DashboardPage({
         >
           <span className="flex items-center gap-2 text-sm font-medium">
             <Clapperboard className="h-4 w-4 text-muted-foreground" />
-            Videos · Clips
+            Videos
           </span>
-          <span className="font-mono text-sm font-bold tabular-nums">
-            {videoCount} · {clipCount}
+          <span className="font-mono text-sm font-bold tabular-nums">{videoCount}</span>
+        </Link>
+        <Link
+          href="/clips"
+          className="flex items-center justify-between rounded-lg border bg-card px-4 py-3 transition-colors hover:bg-muted/35"
+        >
+          <span className="flex items-center gap-2 text-sm font-medium">
+            <Clapperboard className="h-4 w-4 text-muted-foreground" />
+            Clips
           </span>
+          <span className="font-mono text-sm font-bold tabular-nums">{clipCount}</span>
         </Link>
       </div>
 
