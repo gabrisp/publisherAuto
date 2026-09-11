@@ -8,14 +8,12 @@ import {
   Archive,
   ArchiveRestore,
   Calendar,
-  CalendarClock,
   CheckCircle2,
   ChevronDown,
   ChevronLeft,
   Clock,
   Loader2,
   Music,
-  Plus,
   Send,
   UserCircle,
   X,
@@ -56,6 +54,8 @@ type Account = {
 type ClipLibraryItem = {
   id: string;
   name: string;
+  path: string;
+  durationMs: number | null;
 };
 
 type Stats = {
@@ -108,7 +108,6 @@ export default function VideoDetailPage() {
   const [stats, setStats] = useState<Stats>(emptyStats);
   const [saving, setSaving] = useState(false);
   const [uploadingAudio, setUploadingAudio] = useState(false);
-  const [appendClipId, setAppendClipId] = useState("");
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -130,10 +129,6 @@ export default function VideoDetailPage() {
       return sum + Math.max(0, end - clip.trimStartMs);
     }, 0);
   }, [clips]);
-
-  function updateClip(id: string, patch: Partial<EditorClip>) {
-    setClips((prev) => prev.map((clip) => clip.id === id ? { ...clip, ...patch } : clip));
-  }
 
   async function patchVideo(body: Record<string, unknown>) {
     const res = await fetch(`/api/videos/${id}`, {
@@ -210,11 +205,9 @@ export default function VideoDetailPage() {
     await patchVideo({ archivedAt: data?.archivedAt ? null : Math.floor(Date.now() / 1000) });
   }
 
-  async function appendClip() {
-    if (!appendClipId) return;
+  async function appendClip(clipId: string) {
     try {
-      await patchVideo({ addClipIds: [appendClipId] });
-      setAppendClipId("");
+      await patchVideo({ addClipIds: [clipId] });
       toast.success("Clip añadido");
     } catch {
       toast.error("No se pudo añadir el clip");
@@ -276,7 +269,10 @@ export default function VideoDetailPage() {
         <VideoComposerPreview
           videoId={data.id}
           clips={clips}
+          libraryClips={allClips}
           audioPath={audioPath}
+          onClipsChange={setClips}
+          onAddClip={appendClip}
           onExported={async (path) => {
             await patchVideo({ exportPath: path });
           }}
@@ -329,42 +325,6 @@ export default function VideoDetailPage() {
             />
           </section>
 
-          <section className="space-y-3 rounded-lg border bg-card p-4">
-            <div className="flex items-center gap-2">
-              <CalendarClock className="h-4 w-4 text-muted-foreground" />
-              <h2 className="text-sm font-semibold">Clips</h2>
-            </div>
-            <div className="grid gap-2 rounded-md bg-muted/35 p-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-              <select
-                value={appendClipId}
-                onChange={(e) => setAppendClipId(e.target.value)}
-                className="h-8 rounded-lg border bg-background px-2 text-sm"
-              >
-                <option value="">Añadir clip al final…</option>
-                {allClips.map((clip) => (
-                  <option key={clip.id} value={clip.id}>{clip.name}</option>
-                ))}
-              </select>
-              <Button type="button" variant="outline" size="sm" onClick={appendClip} disabled={!appendClipId}>
-                <Plus className="h-4 w-4" />
-                Añadir
-              </Button>
-            </div>
-            <div className="space-y-2">
-              {clips.map((clip, index) => (
-                <div key={clip.id} className="grid gap-2 rounded-md border p-3 md:grid-cols-[minmax(0,1fr)_92px_92px_92px]">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold">{index + 1}. {clip.clipName}</p>
-                    <p className="text-xs text-muted-foreground">{clip.clipPath}</p>
-                  </div>
-                  <NumberField label="Inicio ms" value={clip.trimStartMs} onChange={(value) => updateClip(clip.id, { trimStartMs: value })} />
-                  <NumberField label="Fin ms" value={clip.trimEndMs ?? ""} onChange={(value) => updateClip(clip.id, { trimEndMs: value || null })} />
-                  <NumberField label="Vol %" value={clip.volume} onChange={(value) => updateClip(clip.id, { volume: value })} />
-                </div>
-              ))}
-            </div>
-          </section>
-
           <section className="grid gap-3 rounded-lg border bg-card p-4 sm:grid-cols-5">
             {(["views", "likes", "comments", "shares", "saves"] as const).map((key) => (
               <div key={key} className="space-y-1.5">
@@ -381,29 +341,6 @@ export default function VideoDetailPage() {
         </div>
       </div>
     </div>
-  );
-}
-
-function NumberField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: number | "";
-  onChange: (value: number) => void;
-}) {
-  return (
-    <label className="space-y-1 text-xs text-muted-foreground">
-      {label}
-      <Input
-        type="number"
-        min={0}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="h-8"
-      />
-    </label>
   );
 }
 
