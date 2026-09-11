@@ -21,13 +21,11 @@ export async function PATCH(
   const body = (await req.json()) as {
     name?: string;
     avatarUrl?: string | null;
-    mobileDeviceId?: string | null;
   };
 
   const patch: Record<string, unknown> = {};
   if ("name" in body && body.name?.trim()) patch.name = body.name.trim();
   if ("avatarUrl" in body) patch.avatarUrl = body.avatarUrl?.trim() || null;
-  if ("mobileDeviceId" in body) patch.mobileDeviceId = body.mobileDeviceId || null;
 
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: "no changes" }, { status: 400 });

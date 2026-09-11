@@ -8,20 +8,6 @@ async function main() {
   const sql = postgres(databaseUrl, { ssl: isLocal ? false : "require" });
 
   await sql`
-    CREATE TABLE IF NOT EXISTS mobile_devices (
-      id text PRIMARY KEY,
-      name text NOT NULL,
-      notes text,
-      created_at bigint NOT NULL
-    )
-  `;
-
-  await sql`
-    ALTER TABLE tiktok_accounts
-      ADD COLUMN IF NOT EXISTS mobile_device_id text REFERENCES mobile_devices(id) ON DELETE SET NULL
-  `;
-
-  await sql`
     CREATE TABLE IF NOT EXISTS clips (
       id text PRIMARY KEY,
       name text NOT NULL,
@@ -51,10 +37,16 @@ async function main() {
       scheduled_date text,
       scheduled_time text,
       published_at bigint,
+      archived_at bigint,
       stats text,
       created_at bigint NOT NULL,
       updated_at bigint NOT NULL
     )
+  `;
+
+  await sql`
+    ALTER TABLE videos
+      ADD COLUMN IF NOT EXISTS archived_at bigint
   `;
 
   await sql`
@@ -71,7 +63,7 @@ async function main() {
     )
   `;
 
-  console.log("✓ Videos, clips y móviles listos");
+  console.log("✓ Videos y clips listos");
   await sql.end();
 }
 

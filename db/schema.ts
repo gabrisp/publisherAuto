@@ -89,13 +89,6 @@ export const hashtags = pgTable("hashtags", {
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
 });
 
-export const mobileDevices = pgTable("mobile_devices", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  notes: text("notes"),
-  createdAt: bigint("created_at", { mode: "number" }).notNull(),
-});
-
 export const userTiktokAccounts = pgTable(
   "user_tiktok_accounts",
   {
@@ -126,7 +119,6 @@ export const tiktokAccounts = pgTable("tiktok_accounts", {
   name: text("name").notNull(),
   tiktokUserId: text("tiktok_user_id").unique(),
   avatarUrl: text("avatar_url"),
-  mobileDeviceId: text("mobile_device_id").references(() => mobileDevices.id, { onDelete: "set null" }),
   accessToken: text("access_token"),
   refreshToken: text("refresh_token"),
   tokenExpiresAt: bigint("token_expires_at", { mode: "number" }),
@@ -160,6 +152,7 @@ export const videos = pgTable("videos", {
   scheduledDate: text("scheduled_date"),
   scheduledTime: text("scheduled_time"),
   publishedAt: bigint("published_at", { mode: "number" }),
+  archivedAt: bigint("archived_at", { mode: "number" }),
   stats: text("stats"),
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
   updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
@@ -199,8 +192,6 @@ export type Hashtag = typeof hashtags.$inferSelect;
 export type NewHashtag = typeof hashtags.$inferInsert;
 export type PublisherUser = typeof publisherUsers.$inferSelect;
 export type NewPublisherUser = typeof publisherUsers.$inferInsert;
-export type MobileDevice = typeof mobileDevices.$inferSelect;
-export type NewMobileDevice = typeof mobileDevices.$inferInsert;
 export type Clip = typeof clips.$inferSelect;
 export type NewClip = typeof clips.$inferInsert;
 export type Video = typeof videos.$inferSelect;

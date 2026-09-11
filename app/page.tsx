@@ -20,6 +20,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
+  CalendarDays,
   CalendarClock,
   CheckCircle2,
   Clapperboard,
@@ -69,6 +70,15 @@ function formatSchedule(date: string | null, time: string | null) {
   });
 
   return time ? `${formatted} · ${time}` : formatted;
+}
+
+function getMadridDateKey() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Madrid",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
 }
 
 function getCarouselState(c: DashboardCarousel) {
@@ -288,13 +298,16 @@ export default async function DashboardPage({
     : allCarousels;
 
   const activeCarousels = filtered.filter((c) => !c.archivedAt && !c.publishedAt);
+  const todayKey = getMadridDateKey();
+  const todayCarousels = activeCarousels.filter((c) => c.scheduledDate === todayKey);
+  const recentActiveCarousels = activeCarousels.filter((c) => c.scheduledDate !== todayKey);
   const completedCarousels = filtered.filter((c) => c.archivedAt || c.publishedAt);
 
   const stats = [
+    { label: "Hoy", value: todayCarousels.length, icon: CalendarDays, href: "/hoy" },
     { label: "Activos", value: activeCount, icon: Clock3, href: "/carousels" },
     { label: "Drafts", value: sentCount, icon: Send, href: "/carousels" },
     { label: "Publicados", value: publishedCount, icon: CheckCircle2, href: "/carousels" },
-    { label: "Carousels", value: carouselCount, icon: Film, href: "/carousels" },
   ];
 
   return (
@@ -392,10 +405,42 @@ export default async function DashboardPage({
         <CardHeader>
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div>
+              <CardTitle>Hoy</CardTitle>
+              <CardDescription>
+                {todayCarousels.length} carousel{todayCarousels.length !== 1 ? "s" : ""} activo{todayCarousels.length !== 1 ? "s" : ""} para hoy
+              </CardDescription>
+            </div>
+            <Link
+              href="/hoy"
+              className="rounded-md border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted"
+            >
+              Abrir Hoy
+            </Link>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {todayCarousels.length === 0 ? (
+            <p className="text-sm text-muted-foreground px-6 py-8 text-center">
+              Nada activo programado para hoy.
+            </p>
+          ) : (
+            <div className="divide-y">
+              {todayCarousels.slice(0, 12).map((c) => (
+                <CarouselRow key={c.id} carousel={c} />
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="overflow-hidden">
+        <CardHeader>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
               <CardTitle>Activos recientes</CardTitle>
               <CardDescription>
                 {q
-                  ? `${activeCarousels.length} activo${activeCarousels.length !== 1 ? "s" : ""} para "${q}"`
+                  ? `${recentActiveCarousels.length} activo${recentActiveCarousels.length !== 1 ? "s" : ""} para "${q}"`
                   : `${activeCarousels.length} de los últimos ${allCarousels.length} carousels`}
               </CardDescription>
             </div>
@@ -408,7 +453,7 @@ export default async function DashboardPage({
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {activeCarousels.length === 0 ? (
+          {recentActiveCarousels.length === 0 ? (
             <p className="text-sm text-muted-foreground px-6 py-8 text-center">
               {q ? (
                 <>Sin resultados para &quot;{q}&quot;.</>
@@ -418,7 +463,7 @@ export default async function DashboardPage({
             </p>
           ) : (
             <div className="divide-y">
-              {activeCarousels.slice(0, 24).map((c) => (
+              {recentActiveCarousels.slice(0, 24).map((c) => (
                 <CarouselRow key={c.id} carousel={c} />
               ))}
             </div>

@@ -4,7 +4,22 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import useSWR from "swr";
-import { CalendarClock, CheckCircle2, ChevronLeft, Loader2, Music, Plus, Send } from "lucide-react";
+import {
+  Archive,
+  ArchiveRestore,
+  Calendar,
+  CalendarClock,
+  CheckCircle2,
+  ChevronDown,
+  ChevronLeft,
+  Clock,
+  Loader2,
+  Music,
+  Plus,
+  Send,
+  UserCircle,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,9 +40,9 @@ type VideoDetail = {
   scheduledDate: string | null;
   scheduledTime: string | null;
   publishedAt: number | null;
+  archivedAt: number | null;
   stats: string | null;
   sentToAccountName: string | null;
-  mobileDeviceName: string | null;
   publisherUsername: string | null;
   clips: EditorClip[];
 };
@@ -36,7 +51,6 @@ type Account = {
   id: string;
   name: string;
   avatarUrl: string | null;
-  mobileDeviceName: string | null;
 };
 
 type ClipLibraryItem = {
@@ -95,6 +109,7 @@ export default function VideoDetailPage() {
   const [saving, setSaving] = useState(false);
   const [uploadingAudio, setUploadingAudio] = useState(false);
   const [appendClipId, setAppendClipId] = useState("");
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!data) return;
@@ -191,6 +206,10 @@ export default function VideoDetailPage() {
     await patchVideo({ publishedAt: data?.publishedAt ? null : Math.floor(Date.now() / 1000) });
   }
 
+  async function toggleArchive() {
+    await patchVideo({ archivedAt: data?.archivedAt ? null : Math.floor(Date.now() / 1000) });
+  }
+
   async function appendClip() {
     if (!appendClipId) return;
     try {
@@ -221,6 +240,19 @@ export default function VideoDetailPage() {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
+          <AccountPill
+            value={accountId}
+            label={data.sentToAccountName ? `@${data.sentToAccountName}` : "Cuenta"}
+            accounts={accounts}
+            open={accountMenuOpen}
+            setOpen={setAccountMenuOpen}
+            onSelect={async (value) => {
+              setAccountId(value ?? "");
+              await patchVideo({ sentToAccountId: value });
+            }}
+          />
+          <DatePill value={scheduledDate} onChange={async (value) => { setScheduledDate(value ?? ""); await patchVideo({ scheduledDate: value }); }} />
+          <TimePill value={scheduledTime} onChange={async (value) => { setScheduledTime(value ?? ""); await patchVideo({ scheduledTime: value }); }} />
           <Button type="button" variant="outline" size="sm" onClick={markDraft}>
             <Send className="h-4 w-4" />
             {data.sentAt ? "Quitar draft" : "Draft"}
@@ -228,6 +260,10 @@ export default function VideoDetailPage() {
           <Button type="button" variant="outline" size="sm" onClick={markPublished}>
             <CheckCircle2 className="h-4 w-4" />
             {data.publishedAt ? "Despublicar" : "Publicado"}
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={toggleArchive}>
+            {data.archivedAt ? <ArchiveRestore className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
+            {data.archivedAt ? "Desarchivar" : "Archivar"}
           </Button>
           <Button type="button" size="sm" onClick={save} disabled={saving || !name.trim()}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
@@ -271,24 +307,6 @@ export default function VideoDetailPage() {
             <div className="space-y-1.5 md:col-span-2">
               <Label htmlFor="hashtags">Hashtags</Label>
               <Input id="hashtags" value={hashtags} onChange={(e) => setHashtags(e.target.value)} placeholder="#gymtok #viral" />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="account">Cuenta</Label>
-              <select id="account" value={accountId} onChange={(e) => setAccountId(e.target.value)} className="h-8 w-full rounded-lg border bg-background px-2 text-sm">
-                <option value="">Sin cuenta</option>
-                {accounts.map((account) => (
-                  <option key={account.id} value={account.id}>
-                    @{account.name}{account.mobileDeviceName ? ` · ${account.mobileDeviceName}` : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="date">Programación</Label>
-              <div className="grid grid-cols-[1fr_96px] gap-2">
-                <Input id="date" type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} />
-                <Input type="time" value={scheduledTime} onChange={(e) => setScheduledTime(e.target.value)} />
-              </div>
             </div>
             <button
               type="button"
@@ -385,6 +403,66 @@ function NumberField({
         onChange={(e) => onChange(Number(e.target.value))}
         className="h-8"
       />
+    </label>
+  );
+}
+
+function AccountPill({
+  label,
+  accounts,
+  open,
+  setOpen,
+  onSelect,
+}: {
+  value: string;
+  label: string;
+  accounts: Account[];
+  open: boolean;
+  setOpen: (open: boolean) => void;
+  onSelect: (accountId: string | null) => void | Promise<void>;
+}) {
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors hover:bg-muted/50"
+      >
+        <UserCircle className="h-3.5 w-3.5" />
+        {label}
+        <ChevronDown className="h-3 w-3" />
+      </button>
+      {open && (
+        <div className="absolute right-0 z-20 mt-2 w-56 overflow-hidden rounded-lg border bg-popover p-1 text-sm shadow-lg">
+          <button type="button" onClick={() => { void onSelect(null); setOpen(false); }} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left hover:bg-muted">
+            <X className="h-4 w-4" />
+            Sin cuenta
+          </button>
+          {accounts.map((account) => (
+            <button key={account.id} type="button" onClick={() => { void onSelect(account.id); setOpen(false); }} className="block w-full truncate rounded-md px-2 py-2 text-left hover:bg-muted">
+              @{account.name}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DatePill({ value, onChange }: { value: string | null; onChange: (value: string | null) => void | Promise<void> }) {
+  return (
+    <label className="inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors hover:bg-muted/50">
+      <Calendar className="h-3.5 w-3.5" />
+      <input type="date" value={value ?? ""} onChange={(e) => { void onChange(e.target.value || null); }} className="w-[8.2rem] bg-transparent outline-none" />
+    </label>
+  );
+}
+
+function TimePill({ value, onChange }: { value: string | null; onChange: (value: string | null) => void | Promise<void> }) {
+  return (
+    <label className="inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors hover:bg-muted/50">
+      <Clock className="h-3.5 w-3.5" />
+      <input type="time" value={value ?? ""} onChange={(e) => { void onChange(e.target.value || null); }} className="w-[4.9rem] bg-transparent outline-none" />
     </label>
   );
 }
