@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Download, Loader2, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -32,70 +32,80 @@ const OUTPUT_HEIGHT = 1920;
 const OUTPUT_FPS = 30;
 
 export function VideoComposerPreview({ videoId, clips, audioPath, onExported }: Props) {
-  const mountRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const compositionRef = useRef<any>(null);
   const [engineReady, setEngineReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const totalDuration = useMemo(() => {
+    return clips.reduce((sum, clip) => {
+      const duration = (clip.trimEndMs ?? clip.durationMs ?? 0) - clip.trimStartMs;
+      return sum + Math.max(0, duration);
+    }, 0);
+  }, [clips]);
+
   useEffect(() => {
     let canceled = false;
-    let composition: any;
+    let movie: any;
 
     async function boot() {
       setError(null);
       setEngineReady(false);
 
-      if (!mountRef.current) return;
-      if (!("VideoEncoder" in window) || !("VideoDecoder" in window)) {
-        setError("Este navegador no expone WebCodecs; usa el preview simple.");
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      if (!("MediaRecorder" in window)) {
+        setError("Este navegador no permite grabar el canvas del editor.");
         return;
       }
 
       try {
-        const core = await import("@diffusionstudio/core");
-        composition = new core.Composition({
-          width: OUTPUT_WIDTH,
-          height: OUTPUT_HEIGHT,
+        const mod = await import("etro");
+        const etro = mod.default ?? mod;
+        movie = new etro.Movie({
+          canvas,
           background: "#000000",
         });
 
-        const layer = await composition.add(new core.Layer({ mode: "SEQUENTIAL" }));
-
+        let startTime = 0;
         for (const item of clips) {
           if (!item.clipPath) continue;
-          const source = await core.Source.from<any>(item.clipPath);
-          const clip = new core.VideoClip(source, {
-            width: OUTPUT_WIDTH,
-            height: OUTPUT_HEIGHT,
-            position: "center",
-          });
-          clip.range = [
-            toSeconds(item.trimStartMs),
-            item.trimEndMs ? toSeconds(item.trimEndMs) : undefined,
-          ];
-          clip.volume = item.volume / 100;
-          await layer.add(clip);
+          const duration = Math.max(0, toSeconds((item.trimEndMs ?? item.durationMs ?? 0) - item.trimStartMs));
+          if (!duration) continue;
+          movie.addLayer(new etro.layer.Video({
+            startTime,
+            duration,
+            source: item.clipPath,
+            sourceStartTime: toSeconds(item.trimStartMs),
+            destX: 0,
+            destY: 0,
+            destWidth: OUTPUT_WIDTH,
+            destHeight: OUTPUT_HEIGHT,
+            volume: item.volume / 100,
+          }));
+          startTime += duration;
         }
 
-        if (audioPath) {
-          const source = await core.Source.from<any>(audioPath);
-          const audioLayer = await composition.add(new core.Layer({ mode: "SEQUENTIAL" }));
-          await audioLayer.add(new core.AudioClip(source, { delay: 0 }));
+        if (audioPath && startTime > 0) {
+          movie.addLayer(new etro.layer.Audio({
+            startTime: 0,
+            duration: startTime,
+            source: audioPath,
+          }));
         }
 
         if (canceled) {
-          composition.unmount();
+          movie.stop?.();
           return;
         }
 
-        composition.mount(mountRef.current);
-        await composition.seek(0);
-        compositionRef.current = composition;
+        compositionRef.current = movie;
+        await movie.refresh();
         setEngineReady(true);
       } catch (e) {
         console.error(e);
-        setError("No se pudo montar el preview.");
+        setError("No se pudo montar Etro.");
       }
     }
 
@@ -104,28 +114,28 @@ export function VideoComposerPreview({ videoId, clips, audioPath, onExported }: 
     return () => {
       canceled = true;
       compositionRef.current = null;
-      composition?.unmount?.();
+      movie?.stop?.();
     };
   }, [audioPath, clips]);
 
   async function play() {
     if (!compositionRef.current) return;
-    await compositionRef.current.play(0);
+    compositionRef.current.stop();
+    await compositionRef.current.play({ duration: Math.max(0.1, compositionRef.current.duration || toSeconds(totalDuration)) });
   }
 
   async function exportVideo() {
     if (!compositionRef.current) return;
     setBusy(true);
     try {
-      const core = await import("@diffusionstudio/core");
-      const result = await new core.Encoder(compositionRef.current, {
-        video: { fps: OUTPUT_FPS },
-      }).render();
-      if (result.type !== "success" || !result.data) {
-        throw new Error(result.type === "error" ? result.error.message : "export canceled");
-      }
-      const blob = result.data;
-      const file = new File([blob], `${videoId}.mp4`, { type: "video/mp4" });
+      const type = MediaRecorder.isTypeSupported("video/mp4") ? "video/mp4" : "video/webm";
+      const blob = await compositionRef.current.record({
+        frameRate: OUTPUT_FPS,
+        duration: Math.max(0.1, compositionRef.current.duration || toSeconds(totalDuration)),
+        type,
+      });
+      const ext = type === "video/mp4" ? "mp4" : "webm";
+      const file = new File([blob], `${videoId}.${ext}`, { type });
       const form = new FormData();
       form.append("file", file);
       const res = await fetch("/api/uploads/video", { method: "POST", body: form });
@@ -135,7 +145,7 @@ export function VideoComposerPreview({ videoId, clips, audioPath, onExported }: 
       toast.success("Video exportado");
     } catch (e) {
       console.error(e);
-      toast.error("No se pudo exportar el video");
+      toast.error(e instanceof Error ? e.message : "No se pudo exportar el video");
     } finally {
       setBusy(false);
     }
@@ -144,7 +154,12 @@ export function VideoComposerPreview({ videoId, clips, audioPath, onExported }: 
   return (
     <div className="space-y-3">
       <div className="relative aspect-[9/16] max-h-[68vh] overflow-hidden rounded-lg border bg-black">
-        <div ref={mountRef} className="h-full w-full [&_canvas]:h-full [&_canvas]:w-full [&_canvas]:object-contain" />
+        <canvas
+          ref={canvasRef}
+          width={OUTPUT_WIDTH}
+          height={OUTPUT_HEIGHT}
+          className="h-full w-full object-contain"
+        />
         {!engineReady && (
           <div className="absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-white/70">
             {error ?? "Preparando preview…"}
@@ -163,11 +178,11 @@ export function VideoComposerPreview({ videoId, clips, audioPath, onExported }: 
       <div className="flex flex-wrap gap-2">
         <Button type="button" variant="outline" size="sm" onClick={play} disabled={!engineReady || busy}>
           <Play className="h-4 w-4" />
-          Preview
+          Preview Etro
         </Button>
         <Button type="button" size="sm" onClick={exportVideo} disabled={!engineReady || busy || clips.length === 0}>
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-          Exportar MP4
+          Exportar
         </Button>
       </div>
     </div>
