@@ -33,8 +33,6 @@ import {
 import Link from "next/link";
 import { DashboardSearch } from "@/components/dashboard-search";
 
-export const dynamic = "force-dynamic";
-
 type DashboardCarousel = {
   id: string;
   name: string;
