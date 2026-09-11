@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
 import useSWR from "swr";
 import {
@@ -23,7 +24,19 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { VideoComposerPreview, type EditorClip } from "@/components/video-composer-preview";
+import type { EditorClip } from "@/components/video-composer-preview";
+
+const VideoComposerPreview = dynamic(
+  () => import("@/components/video-composer-preview").then((mod) => mod.VideoComposerPreview),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex aspect-[9/16] max-h-[68vh] items-center justify-center rounded-lg border bg-black px-6 text-center text-sm text-white/70">
+        Cargando editor...
+      </div>
+    ),
+  }
+);
 
 type VideoDetail = {
   id: string;
