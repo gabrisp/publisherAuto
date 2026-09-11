@@ -61,11 +61,10 @@ export function VideoComposerPreview({ videoId, clips, audioPath, onExported }: 
       }
 
       try {
-        const mod = await import("etro");
-        const etro = mod.default ?? mod;
+        const { default: etro } = await import("etro");
         movie = new etro.Movie({
           canvas,
-          background: "#000000",
+          background: new etro.Color(0, 0, 0),
         });
 
         let startTime = 0;
