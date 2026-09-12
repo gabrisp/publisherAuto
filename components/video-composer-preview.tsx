@@ -276,16 +276,30 @@ function buildTwickHtml(videoId: string, clips: EditorClip[], libraryClips: Libr
     .hint{border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:10px;background:rgba(255,255,255,.035);line-height:1.35}
     .btn{border:1px solid rgba(255,255,255,.16);border-radius:7px;padding:7px 10px;background:rgba(255,255,255,.08);color:white;font-weight:700;font-size:12px;cursor:pointer}
     .btn:hover{background:rgba(255,255,255,.14)}
+    .boot-error{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:#090b0f;color:#fca5a5;padding:24px;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap}
   </style>
 </head>
 <body>
   <script type="application/json" id="payload">${payload}</script>
   <div id="root"></div>
+  <div id="boot-error" class="boot-error"></div>
+  <script>
+    function showBootError(message){
+      var node = document.getElementById("boot-error");
+      if (node) {
+        node.style.display = "flex";
+        node.textContent = message;
+      }
+      parent.postMessage({ source: "twick-editor", type: "error", error: message }, "*");
+    }
+    window.addEventListener("error", function(event){ showBootError(event.message || "Twick runtime error"); });
+    window.addEventListener("unhandledrejection", function(event){ showBootError(String(event.reason && event.reason.message || event.reason || "Twick promise rejection")); });
+  </script>
   <script type="module">
     import React, {useMemo, useState} from "https://esm.sh/react@19.2.4";
     import {createRoot} from "https://esm.sh/react-dom@19.2.4/client";
     import VideoEditor, {TIMELINE_DROP_MEDIA_TYPE} from "https://esm.sh/@twick/video-editor@0.15.31?deps=react@19.2.4,react-dom@19.2.4";
-    import {TimelineProvider, useTimelineContext} from "https://esm.sh/@twick/timeline@0.15.31?deps=react@19.2.4,react-dom@19.2.4";
+    import {TimelineProvider, useTimelineContext} from "https://esm.sh/@twick/timeline@0.15.31?deps=react@19.2.4";
     import {LivePlayerProvider} from "https://esm.sh/@twick/live-player@0.15.31?deps=react@19.2.4,react-dom@19.2.4";
 
     const payload = JSON.parse(document.getElementById("payload").textContent);
@@ -392,7 +406,7 @@ function buildTwickHtml(videoId: string, clips: EditorClip[], libraryClips: Libr
         ),
         h("div",{className:"editor"},
           h(LivePlayerProvider,null,
-            h(TimelineProvider,{contextId:payload.videoId,resolution:{width:1080,height:1920},initialData:payload.initialData,analytics:false},
+            h(TimelineProvider,{contextId:payload.videoId,resolution:{width:1080,height:1920},initialData:payload.initialData,analytics:{enabled:false}},
               h(Sync,null),
               h(VideoEditor,{leftPanel:h(MediaPanel,null),rightPanel:h(Inspector,null),editorConfig:config,defaultPlayControls:true})
             )
