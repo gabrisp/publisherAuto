@@ -33,6 +33,24 @@ type Props = {
   onExported: (path: string) => Promise<void>;
 };
 
+type TwickTimelineElement = {
+  id?: string;
+  name?: string;
+  type?: string;
+  s?: number;
+  e?: number;
+  trimStart?: number;
+  props?: { src?: string };
+};
+
+type TwickTimelineTrack = {
+  elements?: TwickTimelineElement[];
+};
+
+type TwickTimeline = {
+  tracks?: TwickTimelineTrack[];
+};
+
 type EtroRuntime = {
   Movie: new (options: { canvas: HTMLCanvasElement; background?: string }) => EtroMovie;
   layer: {
@@ -106,6 +124,66 @@ function waitForMetadata(element: HTMLMediaElement) {
     element.addEventListener("loadedmetadata", done);
     element.addEventListener("error", done);
   });
+}
+
+function timelineToClips(timeline: TwickTimeline, currentClips: EditorClip[], libraryClips: LibraryClip[], videoId: string) {
+  const sources = new Map<string, { id: string; name: string | null; durationMs: number | null }>();
+
+  for (const clip of currentClips) {
+    if (clip.clipPath) {
+      sources.set(clip.clipPath, {
+        id: clip.id,
+        name: clip.clipName,
+        durationMs: clip.durationMs,
+      });
+    }
+  }
+
+  for (const clip of libraryClips) {
+    if (clip.path) {
+      sources.set(clip.path, {
+        id: clip.id,
+        name: clip.name,
+        durationMs: clip.durationMs ?? null,
+      });
+    }
+  }
+
+  const elements = (timeline.tracks ?? [])
+    .flatMap((track) => track.elements ?? [])
+    .filter((element) => element.type === "video" && element.props?.src)
+    .sort((a, b) => (a.s ?? 0) - (b.s ?? 0));
+
+  return elements.map((element, index) => {
+    const path = element.props?.src ?? "";
+    const source = sources.get(path);
+    const startMs = Math.max(0, Math.round((element.trimStart ?? 0) * 1000));
+    const durationMs = Math.max(100, Math.round(((element.e ?? 0) - (element.s ?? 0)) * 1000));
+
+    return {
+      id: source?.id ?? element.id?.replace(/^e-/, "") ?? `${videoId}-${index}`,
+      order: index,
+      clipName: source?.name ?? element.name ?? "Clip",
+      clipPath: path,
+      durationMs: source?.durationMs ?? durationMs,
+      trimStartMs: startMs,
+      trimEndMs: startMs + durationMs,
+      volume: 100,
+    };
+  });
+}
+
+function clipsSignature(clips: EditorClip[]) {
+  return JSON.stringify(
+    clips.map((clip) => ({
+      id: clip.id,
+      order: clip.order,
+      path: clip.clipPath,
+      start: clip.trimStartMs,
+      end: clip.trimEndMs,
+      volume: clip.volume,
+    }))
+  );
 }
 
 async function createVideoSource(src: string) {
@@ -329,30 +407,36 @@ function buildTwickHtml(videoId: string, clips: EditorClip[], libraryClips: Libr
 </html>`;
 }
 
-export function VideoComposerPreview({ videoId, clips, libraryClips, audioPath, onAddClip, onExported }: Props) {
+export function VideoComposerPreview({ videoId, clips, libraryClips, audioPath, onClipsChange, onAddClip, onExported }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [exporting, setExporting] = useState(false);
   const srcDoc = useMemo(() => buildTwickHtml(videoId, clips, libraryClips), [videoId, clips, libraryClips]);
 
   useEffect(() => {
     async function handleMessage(event: MessageEvent) {
-      const data = event.data as { source?: string; type?: string; clip?: { id?: string }; error?: string };
+      const data = event.data as { source?: string; type?: string; clip?: { id?: string }; data?: TwickTimeline; error?: string };
       if (data?.source !== "twick-editor") return;
       if (data.type === "error") {
         toast.error(data.error ?? "Error en el editor", { duration: 12000 });
+      }
+      if (data.type === "timeline" && data.data) {
+        const nextClips = timelineToClips(data.data, clips, libraryClips, videoId);
+        if (clipsSignature(nextClips) !== clipsSignature(clips)) {
+          onClipsChange(nextClips);
+        }
       }
       if (data.type === "clip-uploaded" && data.clip?.id) {
         await onAddClip(data.clip.id);
         toast.success("Clip importado y añadido al proyecto");
       }
       if (data.type === "save-request") {
-        toast.info("Usa Guardar arriba para persistir descripcion, stats y estado.");
+        toast.info("Timeline sincronizada. Usa Guardar arriba para persistir el video.");
       }
     }
 
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [onAddClip]);
+  }, [clips, libraryClips, onAddClip, onClipsChange, videoId]);
 
   async function exportPersistedClips() {
     if (clips.length === 0) return;
@@ -414,17 +498,17 @@ export function VideoComposerPreview({ videoId, clips, libraryClips, audioPath, 
   }
 
   return (
-    <div className="space-y-3">
-      <div className="overflow-hidden rounded-lg border bg-black">
+    <div className="flex h-full min-h-0 flex-col bg-black">
+      <div className="min-h-0 flex-1 bg-black">
         <iframe
           ref={iframeRef}
           title="Twick video editor"
           srcDoc={srcDoc}
-          className="h-[82vh] min-h-[760px] w-full"
+          className="h-full w-full border-0"
           allow="clipboard-read; clipboard-write; fullscreen; autoplay"
         />
       </div>
-      <div className="flex flex-wrap justify-end gap-2">
+      <div className="flex h-12 shrink-0 items-center justify-end gap-2 border-t border-white/10 bg-background px-3">
         <Button type="button" variant="outline" size="sm" onClick={() => iframeRef.current?.requestFullscreen()}>
           <ExternalLink className="h-4 w-4" />
           Pantalla completa

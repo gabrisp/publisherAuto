@@ -21,7 +21,6 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { VideoComposerPreview, type EditorClip } from "@/components/video-composer-preview";
 
 type VideoDetail = {
@@ -217,22 +216,20 @@ export default function VideoDetailPage() {
   if (!data) return <p className="pt-6 text-sm text-muted-foreground">Cargando video…</p>;
 
   return (
-    <div className="space-y-5 pb-24 pt-4 md:pb-6 md:pt-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
+    <div className="fixed inset-0 z-[100] flex min-h-0 flex-col bg-background">
+      <div className="flex min-h-14 flex-wrap items-center justify-between gap-2 border-b bg-background px-3 py-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           <Link href="/videos">
             <Button variant="ghost" size="icon-sm">
               <ChevronLeft className="h-4 w-4" />
             </Button>
           </Link>
-          <div>
-            <h1 className="text-2xl font-bold">{data.name}</h1>
-            <p className="text-sm text-muted-foreground">
-              {clips.length} clip{clips.length !== 1 ? "s" : ""} · {Math.round(totalDuration / 1000)}s
-            </p>
-          </div>
+          <Input value={name} onChange={(e) => setName(e.target.value)} className="h-9 max-w-xs font-semibold" />
+          <span className="hidden text-xs text-muted-foreground sm:inline">
+            {clips.length} clip{clips.length !== 1 ? "s" : ""} · {Math.round(totalDuration / 1000)}s
+          </span>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <AccountPill
             value={accountId}
             label={data.sentToAccountName ? `@${data.sentToAccountName}` : "Cuenta"}
@@ -248,24 +245,38 @@ export default function VideoDetailPage() {
           <TimePill value={scheduledTime} onChange={async (value) => { setScheduledTime(value ?? ""); await patchVideo({ scheduledTime: value }); }} />
           <Button type="button" variant="outline" size="sm" onClick={markDraft}>
             <Send className="h-4 w-4" />
-            {data.sentAt ? "Quitar draft" : "Draft"}
+            Draft
           </Button>
           <Button type="button" variant="outline" size="sm" onClick={markPublished}>
             <CheckCircle2 className="h-4 w-4" />
-            {data.publishedAt ? "Despublicar" : "Publicado"}
+            Publicado
           </Button>
           <Button type="button" variant="outline" size="sm" onClick={toggleArchive}>
             {data.archivedAt ? <ArchiveRestore className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
-            {data.archivedAt ? "Desarchivar" : "Archivar"}
+            Archivo
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => audioInputRef.current?.click()} disabled={uploadingAudio}>
+            {uploadingAudio ? <Loader2 className="h-4 w-4 animate-spin" /> : <Music className="h-4 w-4" />}
+            Audio
           </Button>
           <Button type="button" size="sm" onClick={save} disabled={saving || !name.trim()}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             Guardar
           </Button>
         </div>
+        <input
+          ref={audioInputRef}
+          type="file"
+          accept="audio/*"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) uploadAudio(file);
+          }}
+        />
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(320px,420px)_minmax(0,1fr)]">
+      <main className="min-h-0 flex-1 bg-black">
         <VideoComposerPreview
           videoId={data.id}
           clips={clips}
@@ -277,69 +288,7 @@ export default function VideoDetailPage() {
             await patchVideo({ exportPath: path });
           }}
         />
-
-        <div className="space-y-5">
-          {data.exportPath && (
-            <div className="rounded-lg border bg-card p-4">
-              <p className="mb-2 text-sm font-semibold">Export final</p>
-              <video src={data.exportPath} controls className="aspect-[9/16] max-h-80 rounded-md bg-black" />
-            </div>
-          )}
-
-          <section className="grid gap-4 rounded-lg border bg-card p-4 md:grid-cols-2">
-            <div className="space-y-1.5 md:col-span-2">
-              <Label htmlFor="name">Nombre</Label>
-              <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
-            </div>
-            <div className="space-y-1.5 md:col-span-2">
-              <Label htmlFor="description">Descripción</Label>
-              <textarea
-                id="description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="min-h-24 w-full rounded-lg border bg-background px-3 py-2 text-sm"
-              />
-            </div>
-            <div className="space-y-1.5 md:col-span-2">
-              <Label htmlFor="hashtags">Hashtags</Label>
-              <Input id="hashtags" value={hashtags} onChange={(e) => setHashtags(e.target.value)} placeholder="#gymtok #viral" />
-            </div>
-            <button
-              type="button"
-              onClick={() => audioInputRef.current?.click()}
-              className="flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors hover:bg-muted/40 md:col-span-2"
-              disabled={uploadingAudio}
-            >
-              {uploadingAudio ? <Loader2 className="h-4 w-4 animate-spin" /> : <Music className="h-4 w-4" />}
-              {audioPath ? "Cambiar audio" : "Añadir audio"}
-            </button>
-            <input
-              ref={audioInputRef}
-              type="file"
-              accept="audio/*"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) uploadAudio(file);
-              }}
-            />
-          </section>
-
-          <section className="grid gap-3 rounded-lg border bg-card p-4 sm:grid-cols-5">
-            {(["views", "likes", "comments", "shares", "saves"] as const).map((key) => (
-              <div key={key} className="space-y-1.5">
-                <Label htmlFor={`stat-${key}`} className="capitalize">{key}</Label>
-                <Input
-                  id={`stat-${key}`}
-                  inputMode="numeric"
-                  value={stats[key]}
-                  onChange={(e) => setStats((prev) => ({ ...prev, [key]: e.target.value }))}
-                />
-              </div>
-            ))}
-          </section>
-        </div>
-      </div>
+      </main>
     </div>
   );
 }
